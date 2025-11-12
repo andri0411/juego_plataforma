@@ -1,0 +1,46 @@
+name: kaelenlegacy
+description: "A new Flutter project."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flame: ^1.6.1
+  flame_audio: ^2.11.11
+  flame_tiled: ^3.0.8
+  video_player: ^2.6.0
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/audio/
+    - assets/videos/
+  fonts:
+    - family: Cinzel
+      fonts:
+        - asset: assets/fonts/static/Cinzel-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/static/Cinzel-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/static/Cinzel-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/static/Cinzel-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/static/Cinzel-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/static/Cinzel-Black.ttf
+          weight: 900
