@@ -6,6 +6,7 @@ import 'package:kaelenlegacy/features/home/presentation/widgets/intro_player.dar
 import 'package:kaelenlegacy/features/home/presentation/widgets/newgameintro_player.dart';
 import 'package:kaelenlegacy/utils/video_controller_helper.dart';
 import 'package:kaelenlegacy/features/home/presentation/widgets/home_menu.dart';
+import 'package:kaelenlegacy/features/gamezone/presentation/screens/gamezone_screen.dart';
 import 'package:kaelenlegacy/utils/fade_utils.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:ui';
@@ -47,8 +48,11 @@ class _HomeScreenState extends State<HomeScreen>
       duration: _preFadeDuration,
     );
 
-    // Start by playing the charging/loading clip once, then switch to
-    // intro.mp4 in loop.
+    // Start with the screen fully dark so the app doesn't appear abruptly.
+    // The charging controller itself will delay playback (default 2s), so
+    // we can call _playCharging() immediately and it will start playing
+    // after that delay while keeping the overlay until we reveal it.
+    _fadeController.value = 1.0;
     _playCharging();
   }
 
@@ -77,14 +81,24 @@ class _HomeScreenState extends State<HomeScreen>
         createChargingController(looping: false, volume: 1.0, play: true),
         onUpdate: _onVideoUpdate,
       );
+      // Ensure pre-fade is watched so the overlay begins before the clip ends
+      if (_controller != null) {
+        watchPreFade(
+          _controller!,
+          _fadeController,
+          preFadeDuration: _preFadeDuration,
+        );
+      }
     } catch (_) {}
 
     if (!mounted) return;
     setState(() {});
     // Reveal the screen when this clip starts
+    // Use the slower reveal for the charging clip so the transition from
+    // dark -> clear feels less abrupt.
     await lighten(
       _fadeController,
-      duration: Duration(milliseconds: 300),
+      duration: _slowRevealDuration,
       curve: Curves.easeOut,
     );
   }
@@ -149,17 +163,17 @@ class _HomeScreenState extends State<HomeScreen>
     if (_isFading) return;
     _isFading = true;
 
-  // Hide UI texts immediately
+    // Hide UI texts immediately
     _showTexts = false;
     if (mounted) setState(() {});
 
     // Ensure we reset ended state so the listener can work correctly
     _hasEnded = false;
     _isLooping = false;
-  // Mark that we're playing the new-game intro and that a sequence should
-  // follow (charging -> enter gamezone).
-  _playingNewGameIntro = true;
-  _sequenceAfterNewGame = true;
+    // Mark that we're playing the new-game intro and that a sequence should
+    // follow (charging -> enter gamezone).
+    _playingNewGameIntro = true;
+    _sequenceAfterNewGame = true;
 
     // Fast fade to black (use centralized helper)
     await darken(
@@ -175,6 +189,13 @@ class _HomeScreenState extends State<HomeScreen>
         createNewGameIntroController(looping: false, volume: 1.0, play: true),
         onUpdate: _onVideoUpdate,
       );
+      if (_controller != null) {
+        watchPreFade(
+          _controller!,
+          _fadeController,
+          preFadeDuration: _preFadeDuration,
+        );
+      }
     } catch (_) {}
 
     if (!mounted) return;
@@ -204,6 +225,13 @@ class _HomeScreenState extends State<HomeScreen>
         createChargingController(looping: false, volume: 1.0, play: true),
         onUpdate: _onVideoUpdate,
       );
+      if (_controller != null) {
+        watchPreFade(
+          _controller!,
+          _fadeController,
+          preFadeDuration: _preFadeDuration,
+        );
+      }
     } catch (_) {}
 
     if (!mounted) return;
@@ -223,6 +251,38 @@ class _HomeScreenState extends State<HomeScreen>
     final duration = _controller!.value.duration;
 
     final remaining = duration - position;
+
+    // If the new-game intro is playing and it ends, start the charging clip
+    // that is part of the new-game flow.
+    if (_playingNewGameIntro && position >= duration && !_hasEnded) {
+      _hasEnded = true;
+      _playingNewGameIntro = false;
+      if (_sequenceAfterNewGame) {
+        _sequenceAfterNewGame = false;
+        _playChargingForNewGame();
+        return;
+      }
+    }
+
+    // If charging played as part of the new-game flow and it ended, navigate
+    // to the GameZone screen.
+    if (_chargingForNewGame && position >= duration && !_hasEnded) {
+      _hasEnded = true;
+      _chargingForNewGame = false;
+      // Navigate to gamezone and replace this screen.
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) =>
+                // Import here to avoid cycles; the file is in gamezone feature
+                // and simple to reference.
+                // We'll import at the top of the file.
+                GameZoneScreen(),
+          ),
+        );
+      }
+      return;
+    }
 
     // If we're playing the charging clip, start pre-fade shortly before it ends
     if (_playingCharging &&
@@ -257,10 +317,27 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    // When the app is paused/inactive, pause playback but keep the
+    // controller so we can resume where we left off.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      try {
+        _controller?.pause();
+      } catch (_) {}
+      return;
+    }
+
     if (state == AppLifecycleState.resumed) {
-      // When app is resumed, always restart the intro sequence from start.
-      // This disposes any current controller and begins the intro clip.
-      _playCharging();
+      // If we still have an initialized controller, just resume playback
+      // instead of restarting the whole intro sequence.
+      if (_controller != null && _controller!.value.isInitialized) {
+        try {
+          _controller!.play();
+        } catch (_) {}
+      } else {
+        // Fallback: if there's no controller, start the charging intro.
+        _playCharging();
+      }
     }
   }
 

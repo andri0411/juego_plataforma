@@ -9,6 +9,7 @@ Future<VideoPlayerController> createChargingController({
   bool looping = false,
   double volume = 1.0,
   bool play = false,
+  Duration startDelay = const Duration(seconds: 2),
   VoidCallback? onUpdate,
 }) async {
   final controller = VideoPlayerController.asset('assets/videos/charching.mp4');
@@ -16,6 +17,11 @@ Future<VideoPlayerController> createChargingController({
   await controller.setLooping(looping);
   await controller.setVolume(volume);
   if (onUpdate != null) controller.addListener(onUpdate);
-  if (play) controller.play();
+  if (play) {
+    if (startDelay > Duration.zero) {
+      await Future.delayed(startDelay);
+    }
+    controller.play();
+  }
   return controller;
 }

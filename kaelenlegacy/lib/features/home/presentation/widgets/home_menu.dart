@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-typedef VoidCallback = void Function();
-
 class HomeMenu extends StatelessWidget {
   final bool show;
   final VoidCallback onNewGame;
