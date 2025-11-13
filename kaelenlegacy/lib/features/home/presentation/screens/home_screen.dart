@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:kaelenlegacy/utils/orientation_helper.dart';
+// Orientation helper not required in HomeScreen now; orientation is
+// managed (or avoided) per-screen where needed.
 import 'package:kaelenlegacy/utils/charging_player.dart';
 import 'package:kaelenlegacy/features/home/presentation/widgets/intro_player.dart';
 import 'package:kaelenlegacy/features/home/presentation/widgets/newgameintro_player.dart';
 import 'package:kaelenlegacy/utils/video_controller_helper.dart';
 import 'package:kaelenlegacy/features/home/presentation/widgets/home_menu.dart';
 import 'package:kaelenlegacy/features/gamezone/presentation/screens/gamezone_screen.dart';
+import 'package:kaelenlegacy/utils/image_rotator.dart';
 import 'package:kaelenlegacy/utils/fade_utils.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:ui';
@@ -49,11 +51,18 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     // Start with the screen fully dark so the app doesn't appear abruptly.
-    // The charging controller itself will delay playback (default 2s), so
-    // we can call _playCharging() immediately and it will start playing
-    // after that delay while keeping the overlay until we reveal it.
     _fadeController.value = 1.0;
     _playCharging();
+
+    // Prewarm rotated background bytes for GameZone so navigation can
+    // show the already-rotated image immediately. This runs async and
+    // uses an in-memory cache in `image_rotator.dart`.
+    getRotatedAsset('assets/images/mapbackground.png').then(
+      (_) {},
+      onError: (e) {
+        debugPrint('[HomeScreen] failed to prewarm rotated background: $e');
+      },
+    );
   }
 
   @override
@@ -66,8 +75,37 @@ class _HomeScreenState extends State<HomeScreen>
       _controller!.dispose();
     }
     _fadeController.dispose();
-    // Orientation restored by `LandscapeOnly` dispose.
     super.dispose();
+  }
+
+  Future<void> _navigateToGameZoneWithRotatedBackground() async {
+    // Do not change device orientation to avoid system rotation animation.
+    // Use cached rotated bytes if available, otherwise wait for rotation.
+    final cached = getRotatedAssetCached('assets/images/mapbackground.png');
+    if (cached != null) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => GameZoneScreen(rotatedBackground: cached),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final rotated = await getRotatedAsset('assets/images/mapbackground.png');
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => GameZoneScreen(rotatedBackground: rotated),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => GameZoneScreen()));
+    }
   }
 
   Future<void> _playCharging() async {
@@ -281,19 +319,13 @@ class _HomeScreenState extends State<HomeScreen>
       _chargingForNewGame = false;
       // Navigate to gamezone and replace this screen.
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) =>
-                // Import here to avoid cycles; the file is in gamezone feature
-                // and simple to reference.
-                // We'll import at the top of the file.
-                GameZoneScreen(),
-          ),
-        );
+        // Start navigation task that ensures the app is already in
+        // landscape and provides the rotated background to the next
+        // screen so no rotation animation or intermediate frame is shown.
+        _navigateToGameZoneWithRotatedBackground();
       }
       return;
     }
-
     // If we're playing the charging clip, start pre-fade shortly before it ends
     if (_playingCharging &&
         !_hasStartedPreFade &&
@@ -353,71 +385,69 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return LandscapeOnly(
-      child: Scaffold(
-        body: Stack(
-          children: [
-            // Background video
-            SizedBox.expand(
-              child: (_controller != null && _controller!.value.isInitialized)
-                  ? FittedBox(
-                      fit: BoxFit.cover,
-                      alignment: Alignment.center,
-                      child: SizedBox(
-                        width: _controller!.value.size.width,
-                        height: _controller!.value.size.height,
-                        child: VideoPlayer(_controller!),
-                      ),
-                    )
-                  : Container(color: Colors.black),
-            ),
-
-            // Full-screen fade overlay controlled by _fadeController. Covers the
-            // entire screen so the darkening is visible during the transition
-            // from `charching.mp4` to the looping `intro.mp4`.
-            IgnorePointer(
-              ignoring: true,
-              child: AnimatedBuilder(
-                animation: _fadeController,
-                builder: (context, child) {
-                  return Container(
-                    color: Colors.black.withOpacity(_fadeController.value),
-                  );
-                },
-              ),
-            ),
-
-            // Dark radial overlay in bottom-left corner (doesn't block interactions)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.bottomLeft,
-                      // radius controls how far the dark corner reaches
-                      // increased to make the dark corner cover more area
-                      radius: 2.0,
-                      colors: [
-                        Colors.black.withOpacity(0.75),
-                        Colors.transparent,
-                      ],
-                      stops: [0.0, 1.0],
-                      tileMode: TileMode.clamp,
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background video
+          SizedBox.expand(
+            child: (_controller != null && _controller!.value.isInitialized)
+                ? FittedBox(
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      width: _controller!.value.size.width,
+                      height: _controller!.value.size.height,
+                      child: VideoPlayer(_controller!),
                     ),
+                  )
+                : Container(color: Colors.black),
+          ),
+
+          // Full-screen fade overlay controlled by _fadeController. Covers the
+          // entire screen so the darkening is visible during the transition
+          // from `charching.mp4` to the looping `intro.mp4`.
+          IgnorePointer(
+            ignoring: true,
+            child: AnimatedBuilder(
+              animation: _fadeController,
+              builder: (context, child) {
+                return Container(
+                  color: Colors.black.withOpacity(_fadeController.value),
+                );
+              },
+            ),
+          ),
+
+          // Dark radial overlay in bottom-left corner (doesn't block interactions)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.bottomLeft,
+                    // radius controls how far the dark corner reaches
+                    // increased to make the dark corner cover more area
+                    radius: 2.0,
+                    colors: [
+                      Colors.black.withOpacity(0.75),
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 1.0],
+                    tileMode: TileMode.clamp,
                   ),
                 ),
               ),
             ),
+          ),
 
-            // Top-left title + menu encapsulated into HomeMenu widget
-            HomeMenu(
-              show: _showTexts,
-              onNewGame: _playNewGameIntro,
-              onSettings: () {},
-              onQuit: _quitGame,
-            ),
-          ],
-        ),
+          // Top-left title + menu encapsulated into HomeMenu widget
+          HomeMenu(
+            show: _showTexts,
+            onNewGame: _playNewGameIntro,
+            onSettings: () {},
+            onQuit: _quitGame,
+          ),
+        ],
       ),
     );
   }

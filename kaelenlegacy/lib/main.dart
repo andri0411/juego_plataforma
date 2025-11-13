@@ -1,8 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kaelenlegacy/features/home/presentation/screens/home_screen.dart';
-import 'features/home/presentation/screens/home_screen.dart';
+import 'package:kaelenlegacy/utils/image_rotator.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Force the whole app to run in landscape only.
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+
+  // Prewarm rotated background so GameZone displays instantly without
+  // any runtime rotation animation.
+  try {
+    await getRotatedAsset('assets/images/mapbackground.png');
+  } catch (_) {}
+
   runApp(const MyApp());
 }
 
