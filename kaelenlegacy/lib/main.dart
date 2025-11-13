@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:kaelenlegacy/features/home/screens/home_screen.dart';
-import 'features/home/screens/home_screen.dart';
+import 'package:kaelenlegacy/features/home/presentation/screens/home_screen.dart';
+import 'features/home/presentation/screens/home_screen.dart';
 
 void main() {
   runApp(const MyApp());
