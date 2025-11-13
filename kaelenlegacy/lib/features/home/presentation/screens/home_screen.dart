@@ -78,7 +78,12 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       _controller = await replaceController(
         _controller,
-        createChargingController(looping: false, volume: 1.0, play: true),
+        createChargingController(
+          looping: false,
+          volume: 1.0,
+          play: true,
+          fadeController: _fadeController,
+        ),
         onUpdate: _onVideoUpdate,
       );
       // Ensure pre-fade is watched so the overlay begins before the clip ends
@@ -222,7 +227,12 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       _controller = await replaceController(
         _controller,
-        createChargingController(looping: false, volume: 1.0, play: true),
+        createChargingController(
+          looping: false,
+          volume: 1.0,
+          play: true,
+          fadeController: _fadeController,
+        ),
         onUpdate: _onVideoUpdate,
       );
       if (_controller != null) {
