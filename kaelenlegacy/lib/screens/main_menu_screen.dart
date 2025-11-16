@@ -110,28 +110,30 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                 ),
+                // Mostrar la ruleta de opciones vertical y pegada a la derecha
+                Positioned(
+                  top: MediaQuery.of(context).size.height * 0.18,
+                  right: 0,
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    width: 120,
+                    child: MenuCarousel(vertical: true),
+                  ),
+                ),
               ],
             )
-          else
-            Container(color: Colors.black),
-          AnimatedBuilder(
-            animation: _fadeAnimation,
-            builder: (context, child) {
-              return Opacity(
-                opacity: _fadeAnimation.value,
-                child: Container(color: Colors.black),
-              );
-            },
-          ),
-          if (_showTitle)
+          else if (_showTitle) ...[
+            // Título centrado arriba
             Positioned(
-              right: 24,
-              top: 32,
+              left: 0,
+              right: 0,
+              top: MediaQuery.of(context).size.height * 0.18,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
                     'Kaelen',
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontFamily: 'Cinzel',
                       fontWeight: FontWeight.bold,
@@ -146,93 +148,150 @@ class _SplashScreenState extends State<SplashScreen>
                       ],
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 90),
-                    child: Text(
-                      'Legacy',
-                      style: const TextStyle(
-                        fontFamily: 'Cinzel',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 42,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            offset: Offset(2, 2),
-                            blurRadius: 6,
-                            color: Colors.black54,
-                          ),
-                        ],
-                      ),
+                  Text(
+                    'Legacy',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Cinzel',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 42,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(2, 2),
+                          blurRadius: 6,
+                          color: Colors.black54,
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 32),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          'New Game',
-                          style: const TextStyle(
-                            fontFamily: 'Spectral',
-                            fontStyle: FontStyle.italic,
-                            fontSize: 28,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(2, 2),
-                                blurRadius: 6,
-                                color: Colors.black54,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          'Settings',
-                          style: const TextStyle(
-                            fontFamily: 'Spectral',
-                            fontStyle: FontStyle.italic,
-                            fontSize: 28,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(2, 2),
-                                blurRadius: 6,
-                                color: Colors.black54,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          'Quit',
-                          style: const TextStyle(
-                            fontFamily: 'Spectral',
-                            fontStyle: FontStyle.italic,
-                            fontSize: 28,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(2, 2),
-                                blurRadius: 6,
-                                color: Colors.black54,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
             ),
+            // Ruleta de opciones vertical y pegada a la derecha
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.18,
+              right: 0,
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.6,
+                width: 120,
+                child: MenuCarousel(vertical: true),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+}
+
+// Widget para la ruleta de opciones
+class MenuCarousel extends StatefulWidget {
+  final bool vertical;
+  const MenuCarousel({this.vertical = false, Key? key}) : super(key: key);
+
+  @override
+  State<MenuCarousel> createState() => _MenuCarouselState();
+}
+
+class _MenuCarouselState extends State<MenuCarousel> {
+  late final PageController _pageController;
+  final List<String> options = ['New Game', 'Settings', 'Quit'];
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.7);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.vertical) {
+      return RotatedBox(
+        quarterTurns: 1,
+        child: PageView.builder(
+          scrollDirection: Axis.horizontal,
+          controller: _pageController,
+          itemCount: options.length,
+          onPageChanged: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          itemBuilder: (context, index) {
+            final isSelected = index == _selectedIndex;
+            return Center(
+              child: RotatedBox(
+                quarterTurns: -1,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  padding: EdgeInsets.symmetric(vertical: isSelected ? 16 : 8),
+                  child: Text(
+                    options[index],
+                    style: TextStyle(
+                      fontFamily: 'Spectral',
+                      fontStyle: FontStyle.italic,
+                      fontSize: isSelected ? 36 : 28,
+                      color: isSelected ? Colors.white : Colors.white54,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(2, 2),
+                          blurRadius: 6,
+                          color: Colors.black54,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } else {
+      return PageView.builder(
+        controller: _pageController,
+        itemCount: options.length,
+        onPageChanged: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        itemBuilder: (context, index) {
+          final isSelected = index == _selectedIndex;
+          return Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 8),
+              child: Text(
+                options[index],
+                style: TextStyle(
+                  fontFamily: 'Spectral',
+                  fontStyle: FontStyle.italic,
+                  fontSize: isSelected ? 36 : 28,
+                  color: isSelected ? Colors.white : Colors.white54,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(2, 2),
+                      blurRadius: 6,
+                      color: Colors.black54,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
   }
 }
