@@ -16,6 +16,7 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
   bool _showMap = false;
   double _scale = 1.0;
   bool _isZooming = false;
+  bool _isDark = false;
 
   @override
   void initState() {
@@ -45,20 +46,21 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
       });
       Future.delayed(const Duration(milliseconds: 700), () {
         setState(() {
-          _scale = 1.3;
+          _scale = 1.7; // acercamiento más fuerte
         });
       });
       Future.delayed(const Duration(milliseconds: 950), () {
         setState(() {
-          _videoOpacity = 0.0;
+          _isDark = true; // oscurecer
         });
       });
-      Future.delayed(const Duration(milliseconds: 1100), () {
+      Future.delayed(const Duration(milliseconds: 2950), () {
         setState(() {
           _showMap = true;
           _isInitialized = false;
           _scale = 1.0;
-          _videoOpacity = 1.0;
+          _videoOpacity = 0.0;
+          _isDark = false;
         });
         _controller.removeListener(_videoListener);
         _controller.dispose();
@@ -69,7 +71,11 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
             });
             _controller.play();
             _controller.setLooping(false);
-            // Si quieres una acción al terminar showmap.mp4, puedes agregar otro listener aquí
+            Future.delayed(const Duration(milliseconds: 400), () {
+              setState(() {
+                _videoOpacity = 1.0; // fade-in
+              });
+            });
           });
       });
     } else if (_showMap && position >= duration) {
@@ -91,8 +97,10 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Center(
-        child: _isInitialized
-            ? AnimatedOpacity(
+        child: Stack(
+          children: [
+            if (_isInitialized)
+              AnimatedOpacity(
                 opacity: _videoOpacity,
                 duration: const Duration(milliseconds: 100),
                 child: AnimatedScale(
@@ -101,8 +109,27 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
                   curve: Curves.easeInOut,
                   child: SizedBox.expand(child: VideoPlayer(_controller)),
                 ),
-              )
-            : const CircularProgressIndicator(),
+            else
+              AnimatedOpacity(
+                opacity: 1.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  color: Colors.black,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+            if (_isDark)
+              AnimatedOpacity(
+                opacity: 1.0,
+                duration: const Duration(milliseconds: 100),
+                child: Container(
+                  color: Colors.black,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+            ),
+          ],
+        ),
       ),
     );
   }

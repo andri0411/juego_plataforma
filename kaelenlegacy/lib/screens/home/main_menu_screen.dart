@@ -14,22 +14,6 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   bool _showGameZone = false;
-  // Para evitar que la ruleta y la sombra se muestren cuando inicia el video de New Game
-  void _onMenuOptionChanged(String option) async {
-    if (option == 'Store' &&
-        _controller.dataSource != 'assets/videos/store.mp4') {
-      await _changeVideo('assets/videos/store.mp4');
-    } else if (option != 'Store' &&
-        _controller.dataSource == 'assets/videos/store.mp4') {
-      await _changeVideo('assets/videos/intro.mp4');
-    }
-    if (option == 'New Game') {
-      setState(() {
-        _showGameZone = true;
-      });
-    }
-  }
-
   late VideoPlayerController _controller;
   late AnimationController _fadeController;
   bool _isInitialized = false;
@@ -60,22 +44,39 @@ class _SplashScreenState extends State<SplashScreen>
     if (!_isFadingOut && !_isIntro && _controller.value.isInitialized) {
       final duration = _controller.value.duration;
       final position = _controller.value.position;
+      // Oscurecer 2 segundos antes de terminar
       if (duration.inMilliseconds > 0 &&
-          duration.inSeconds - position.inSeconds <= 1) {
+          duration.inSeconds - position.inSeconds <= 2 &&
+          _videoOpacity == 1.0) {
+        setState(() {
+          _videoOpacity = 0.0; // Fade out
+        });
+      }
+      // Cambiar de video cuando termine
+      if (duration.inMilliseconds > 0 &&
+          duration.inSeconds - position.inSeconds <= 1 &&
+          !_isFadingOut) {
         _isFadingOut = true;
-        _fadeController.reverse().then((_) async {
+        Future.delayed(const Duration(milliseconds: 500), () async {
           await _controller.pause();
           await _controller.dispose();
           _controller = VideoPlayerController.asset('assets/videos/intro.mp4');
           await _controller.initialize();
-          _controller.setLooping(true); // <-- ya está aquí
+          _controller.setLooping(true);
           setState(() {
             _isIntro = true;
             _isInitialized = true;
             _isFadingOut = false;
             _showTitle = false;
+            _videoOpacity = 0.0; // Mantener oscuro al cambiar
           });
           _controller.play();
+          // Iluminar suavemente al iniciar el siguiente video
+          Future.delayed(const Duration(milliseconds: 300), () {
+            setState(() {
+              _videoOpacity = 1.0; // Fade in
+            });
+          });
           _fadeController.forward();
           Future.delayed(const Duration(milliseconds: 1000), () {
             setState(() {
@@ -84,6 +85,21 @@ class _SplashScreenState extends State<SplashScreen>
           });
         });
       }
+    }
+  }
+
+  void _onMenuOptionChanged(String option) async {
+    if (option == 'Store' &&
+        _controller.dataSource != 'assets/videos/store.mp4') {
+      await _changeVideo('assets/videos/store.mp4');
+    } else if (option != 'Store' &&
+        _controller.dataSource == 'assets/videos/store.mp4') {
+      await _changeVideo('assets/videos/intro.mp4');
+    }
+    if (option == 'New Game') {
+      setState(() {
+        _showGameZone = true;
+      });
     }
   }
 
@@ -131,7 +147,7 @@ class _SplashScreenState extends State<SplashScreen>
                     children: [
                       AnimatedOpacity(
                         opacity: _videoOpacity,
-                        duration: const Duration(milliseconds: 100),
+                        duration: const Duration(milliseconds: 800),
                         child: SizedBox.expand(child: VideoPlayer(_controller)),
                       ),
                       // Mostrar la sombra solo cuando la ruleta está visible (durante intro.mp4)
