@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/home/main_menu_screen.dart';
+import 'screens/home/home_screen.dart'; // Importa la pantalla principal actualizada
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +16,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(debugShowCheckedModeBanner: false, home: SplashScreen());
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home:
+          HomeScreen(), // Inicia con la pantalla principal que incluye la animación de carga
+    );
   }
 }
