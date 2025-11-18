@@ -10,22 +10,16 @@ class GameZoneScreen extends StatefulWidget {
 }
 
 class _GameZoneScreenState extends State<GameZoneScreen> {
+    bool _isShowMapVideo = false;
   late VideoPlayerController _controller;
-  bool _isInitialized = false;
-  double _videoOpacity = 1.0;
-  bool _showMap = false;
-  double _scale = 1.0;
-  bool _isZooming = false;
-  bool _isDark = false;
+  // ...existing code...
 
   @override
   void initState() {
     super.initState();
     _controller = VideoPlayerController.asset('assets/videos/newgameintro.mp4')
       ..initialize().then((_) {
-        setState(() {
-          _isInitialized = true;
-        });
+        setState(() {});
         _controller.play();
         _controller.setLooping(false);
         _controller.addListener(_videoListener);
@@ -35,53 +29,19 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
   void _videoListener() {
     final duration = _controller.value.duration;
     final position = _controller.value.position;
-    if (!_isZooming &&
-        !_showMap &&
-        duration.inMilliseconds > 0 &&
-        duration.inMilliseconds - position.inMilliseconds <= 1000) {
-      // Iniciar animación de zoom 1 segundo antes de terminar
-      _isZooming = true;
+    if (duration.inMilliseconds > 0 && position >= duration) {
+      // Cuando termina el primer video, reproducir el segundo
+      _controller.removeListener(_videoListener);
+      _controller.dispose();
       setState(() {
-        _scale = 1.0;
+        _isShowMapVideo = true;
       });
-      Future.delayed(const Duration(milliseconds: 700), () {
-        setState(() {
-          _scale = 1.7; // acercamiento más fuerte
+      _controller = VideoPlayerController.asset('assets/videos/showmap.mp4')
+        ..initialize().then((_) {
+          setState(() {});
+          _controller.play();
+          _controller.setLooping(false);
         });
-      });
-      Future.delayed(const Duration(milliseconds: 950), () {
-        setState(() {
-          _isDark = true; // oscurecer
-        });
-      });
-      Future.delayed(const Duration(milliseconds: 2950), () {
-        setState(() {
-          _showMap = true;
-          _isInitialized = false;
-          _scale = 1.0;
-          _videoOpacity = 0.0;
-          _isDark = false;
-        });
-        _controller.removeListener(_videoListener);
-        _controller.dispose();
-        _controller = VideoPlayerController.asset('assets/videos/showmap.mp4')
-          ..initialize().then((_) {
-            setState(() {
-              _isInitialized = true;
-            });
-            _controller.play();
-            _controller.setLooping(false);
-            Future.delayed(const Duration(milliseconds: 400), () {
-              setState(() {
-                _videoOpacity = 1.0; // fade-in
-              });
-            });
-          });
-      });
-    } else if (_showMap && position >= duration) {
-      if (widget.onVideoEnd != null) {
-        widget.onVideoEnd!();
-      }
     }
   }
 
@@ -99,35 +59,31 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
       body: Center(
         child: Stack(
           children: [
-            if (_isInitialized)
-              AnimatedOpacity(
-                opacity: _videoOpacity,
-                duration: const Duration(milliseconds: 100),
-                child: AnimatedScale(
-                  scale: _scale,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeInOut,
-                  child: SizedBox.expand(child: VideoPlayer(_controller)),
-                ),
-            else
-              AnimatedOpacity(
-                opacity: 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: Container(
-                  color: Colors.black,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-            if (_isDark)
-              AnimatedOpacity(
-                opacity: 1.0,
-                duration: const Duration(milliseconds: 100),
-                child: Container(
-                  color: Colors.black,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
+            Stack(
+              children: [
+                _controller.value.isInitialized
+                    ? SizedBox.expand(child: VideoPlayer(_controller))
+                    : Container(
+                        color: Colors.black,
+                        width: double.infinity,
+                        height: double.infinity,
+                      ),
+                if (_isShowMapVideo)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Image.asset(
+                          'assets/images/door.png',
+                          fit: BoxFit.contain,
+                          width: 300,
+                          height: 300,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+            // ...existing code...
           ],
         ),
       ),

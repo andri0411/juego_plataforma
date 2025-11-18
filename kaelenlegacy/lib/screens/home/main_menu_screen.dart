@@ -99,6 +99,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (option == 'New Game') {
       setState(() {
         _showGameZone = true;
+        _isIntro = false; // Oculta sombra y ruleta
       });
     }
   }
@@ -150,8 +151,8 @@ class _SplashScreenState extends State<SplashScreen>
                         duration: const Duration(milliseconds: 800),
                         child: SizedBox.expand(child: VideoPlayer(_controller)),
                       ),
-                      // Mostrar la sombra solo cuando la ruleta está visible (durante intro.mp4)
-                      if (_isIntro)
+                      // Mostrar la sombra y la ruleta solo si _isIntro es true y no se ha seleccionado "New Game"
+                      if (_isIntro && !_showGameZone)
                         Align(
                           alignment: Alignment.centerRight,
                           child: Container(
@@ -171,8 +172,7 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           ),
                         ),
-                      // Mostrar la ruleta de opciones solo durante el video "intro.mp4"
-                      if (_isIntro)
+                      if (_isIntro && !_showGameZone)
                         Positioned(
                           top: MediaQuery.of(context).size.height * 0.18,
                           right: 32,
