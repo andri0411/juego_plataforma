@@ -32,4 +32,5 @@ flutter:
     - family: Spectral
       fonts:
         - asset: assets/fonts/spectral/Spectral-Italic.ttf
+        - asset: assets/fonts/spectral/Spectral-Light.ttf
           style: italic
