@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Nueva variable para controlar la animación de carga
   bool _showPreHome = true;
+  int _menuSelectedIndex = 0; // <-- Nuevo estado
 
   @override
   void initState() {
@@ -70,19 +71,28 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onMenuOptionChanged(String option) async {
-    if (option == 'Store' &&
+    final cleanOption = option.replaceAll('\n', ' ');
+    setState(() {
+      _menuSelectedIndex = [
+        'New Game',
+        'Store',
+        'Settings',
+        'Quit',
+      ].indexOf(cleanOption);
+    });
+    if (cleanOption == 'Store' &&
         _controller.dataSource != 'assets/videos/store.mp4') {
       await _changeVideo('assets/videos/store.mp4');
-    } else if (option == 'Settings' &&
+    } else if (cleanOption == 'Settings' &&
         _controller.dataSource != 'assets/videos/settings.mp4') {
       await _changeVideo('assets/videos/settings.mp4');
-    } else if (option != 'Store' &&
-        option != 'Settings' &&
+    } else if (cleanOption != 'Store' &&
+        cleanOption != 'Settings' &&
         (_controller.dataSource == 'assets/videos/store.mp4' ||
             _controller.dataSource == 'assets/videos/settings.mp4')) {
       await _changeVideo('assets/videos/intro.mp4');
     }
-    if (option == 'New Game') {
+    if (cleanOption == 'New Game') {
       setState(() => _videoOpacity = 0.0);
       await Future.delayed(const Duration(milliseconds: 500));
       await _controller.pause();
@@ -106,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen>
         }
       });
     }
-    if (option == 'Quit') {
+    if (cleanOption == 'Quit') {
       // Cierra la aplicación
       Future.delayed(const Duration(milliseconds: 300), () {
         SystemNavigator.pop();
@@ -226,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-          if (!_showPreHome)
+          if (!_showPreHome && _isInitialized)
             Positioned(
               top: MediaQuery.of(context).size.height * 0.18,
               right: 32,
@@ -236,6 +246,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: MenuCarousel(
                   vertical: true,
                   onOptionChanged: _onMenuOptionChanged,
+                  selectedIndex: _menuSelectedIndex, // <-- Nuevo parámetro
                 ),
               ),
             ),
