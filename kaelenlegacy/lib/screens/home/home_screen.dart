@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             Positioned(
-              left: MediaQuery.of(context).size.width * 0.08,
+              left: MediaQuery.of(context).size.width * 0.03,
               top: MediaQuery.of(context).size.height * 0.12,
               child: SizedBox(
                 width: MediaQuery.of(context).size.width * 0.42,
@@ -188,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen>
                     style: TextStyle(
                       fontFamily: 'Cinzel',
                       fontSize: 80,
-                      color: Color(0xFFFFD700),
+                      color: Colors.white,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 2,
                       shadows: [
