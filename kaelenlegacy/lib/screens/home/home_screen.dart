@@ -1,4 +1,3 @@
-// ...existing code...
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:ui';
@@ -14,32 +13,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-      void _returnToMenu() async {
-        setState(() {
-          _videoOpacity = 0.0;
-          _isInitialized = false;
-          _isZooming = false;
-          _zoomScale = 1.0;
-          _fadeToBlack = 0.0;
-          _isTransitioning = false;
-          _showPreHome = false;
-        });
-        await _controller.pause();
-        await _controller.dispose();
-        _controller = VideoPlayerController.asset('assets/videos/intro.mp4');
-        await _controller.initialize();
-        setState(() {
-          _isInitialized = true;
-          _videoOpacity = 1.0;
-          _showPreHome = false;
-          _zoomScale = 1.0;
-          _isZooming = false;
-          _isTransitioning = false;
-          _fadeToBlack = 0.0;
-        });
-        _controller.setLooping(true);
-        _controller.play();
-      }
     with SingleTickerProviderStateMixin {
   late VideoPlayerController _controller;
   late AnimationController _fadeController;
@@ -263,31 +236,43 @@ class _HomeScreenState extends State<HomeScreen>
                     bottom: 32,
                     right: 32,
                     child: GestureDetector(
-                      onTap: _returnToMenu,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'exit',
-                            style: TextStyle(
-                              fontFamily: 'Spectral',
-                              color: Colors.white,
-                              fontSize: 35,
-                              fontWeight: FontWeight.w300, // Light
-                              shadows: [
-                                Shadow(
-                                  offset: Offset(2, 2),
-                                  blurRadius: 6,
-                                  color: Colors.black54,
-                                ),
-                              ],
+                      onTap: () async {
+                        setState(() => _videoOpacity = 0.0);
+                        await Future.delayed(const Duration(milliseconds: 300));
+                        await _controller.pause();
+                        await _controller.dispose();
+                        _controller = VideoPlayerController.asset(
+                          'assets/videos/intro.mp4',
+                        );
+                        await _controller.initialize();
+                        setState(() {
+                          _isInitialized = true;
+                          _showPreHome = false;
+                          _videoOpacity = 0.0;
+                          _zoomScale = 1.0;
+                          _fadeToBlack = 0.0;
+                        });
+                        _controller.setLooping(true);
+                        _controller.play();
+                        await Future.delayed(const Duration(milliseconds: 200));
+                        setState(() {
+                          _videoOpacity = 1.0;
+                        });
+                      },
+                      child: Text(
+                        'exit',
+                        style: TextStyle(
+                          fontFamily: 'Spectral',
+                          color: Colors.white,
+                          fontSize: 35,
+                          fontWeight: FontWeight.w300, // Light
+                          shadows: [
+                            Shadow(
+                              offset: Offset(2, 2),
+                              blurRadius: 6,
+                              color: Colors.black54,
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ),
