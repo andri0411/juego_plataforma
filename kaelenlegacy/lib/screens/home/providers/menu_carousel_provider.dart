@@ -11,7 +11,7 @@ class MenuCarousel extends StatefulWidget {
 }
 
 class _MenuCarouselState extends State<MenuCarousel> {
-  final List<String> options = ['New Game', 'Store', 'Settings', 'Quit'];
+  final List<String> options = ['New\nGame', 'Store', 'Settings', 'Quit'];
   int _selectedIndex = 0;
 
   @override
@@ -38,7 +38,10 @@ class _MenuCarouselState extends State<MenuCarousel> {
             fit: BoxFit.scaleDown,
             child: Text(
               options[index],
-              maxLines: 1,
+              maxLines: options[index].contains('\n') ? 2 : 1,
+              textAlign: options[index].contains('\n')
+                  ? TextAlign.center
+                  : TextAlign.start,
               overflow: TextOverflow.visible,
               style: TextStyle(
                 fontFamily: 'Spectral',
