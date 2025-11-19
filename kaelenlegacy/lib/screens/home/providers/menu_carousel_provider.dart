@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 class MenuCarousel extends StatefulWidget {
   final bool vertical;
   final ValueChanged<String>? onOptionChanged;
-  final int selectedIndex; // <-- Nuevo parámetro
+  final int selectedIndex;
+  final ValueChanged<int>? onPageChanged; // <-- Nuevo parámetro
 
   const MenuCarousel({
     this.vertical = false,
     this.onOptionChanged,
-    this.selectedIndex = 0, // <-- Valor por defecto
+    this.selectedIndex = 0,
+    this.onPageChanged,
     Key? key,
   }) : super(key: key);
 
@@ -44,9 +46,7 @@ class _MenuCarouselState extends State<MenuCarousel> {
       controller: _pageController,
       scrollDirection: widget.vertical ? Axis.vertical : Axis.horizontal,
       itemCount: options.length,
-      onPageChanged: (index) {
-        widget.onOptionChanged?.call(options[index]);
-      },
+      onPageChanged: widget.onPageChanged,
       itemBuilder: (context, index) {
         final isSelected = index == widget.selectedIndex;
         return Center(
