@@ -157,6 +157,59 @@ class _HomeScreenState extends State<HomeScreen>
               child: SizedBox.expand(child: VideoPlayer(_controller)),
             ),
           // Solo muestra el home si terminó la animación de carga principal
+          // Sombra izquierda: sólo cuando el fondo es el video por defecto (intro.mp4)
+          if (!_showPreHome &&
+              _controller.dataSource == 'assets/videos/intro.mp4') ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.5,
+                height: double.infinity,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerRight,
+                    end: Alignment.centerLeft,
+                    colors: [Colors.transparent, Colors.black54, Colors.black],
+                    stops: [0.0, 0.6, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: MediaQuery.of(context).size.width * 0.08,
+              top: MediaQuery.of(context).size.height * 0.12,
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.42,
+                height: MediaQuery.of(context).size.height * 0.76,
+                child: Center(
+                  child: Text(
+                    'Kaelen Legacy',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Cinzel',
+                      fontSize: 80,
+                      color: Color(0xFFFFD700),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                      shadows: [
+                        const Shadow(
+                          offset: Offset(1, 1),
+                          blurRadius: 4,
+                          color: Colors.black38,
+                        ),
+                        Shadow(
+                          offset: Offset(0, 0),
+                          blurRadius: 10,
+                          color: Color(0xFFFFD700).withOpacity(0.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           if (!_showPreHome)
             Align(
               alignment: Alignment.centerRight,
