@@ -3,6 +3,7 @@ import 'package:video_player/video_player.dart';
 import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'providers/menu_carousel_provider.dart';
+import 'providers/store_roulette_provider.dart';
 import '../gamezone/game_zone_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,6 +27,9 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isZooming = false;
   bool _isTransitioning = false;
   double _fadeToBlack = 0.0;
+
+  // Provider para la ruleta de la tienda
+  final storeRouletteProvider = StoreRouletteProvider();
 
   @override
   void initState() {
@@ -258,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen>
           // Solo muestra el home si terminó la animación de carga principal
           // Sombra izquierda: sólo cuando el fondo es el video por defecto (intro.mp4)
           if (!_showPreHome &&
-              _controller.dataSource == 'assets/videos/intro.mp4') ...[
+              (_controller.dataSource == 'assets/videos/intro.mp4')) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: Container(
@@ -272,14 +276,6 @@ class _HomeScreenState extends State<HomeScreen>
                     stops: [0.0, 0.6, 1.0],
                   ),
                 ),
-              ),
-            ),
-            Positioned(
-              left: MediaQuery.of(context).size.width * 0.03,
-              top: MediaQuery.of(context).size.height * 0.12,
-              child: SizedBox(
-                width: MediaQuery.of(context).size.width * 0.42,
-                height: MediaQuery.of(context).size.height * 0.76,
                 child: Center(
                   child: Text(
                     'Kaelen Legacy',
