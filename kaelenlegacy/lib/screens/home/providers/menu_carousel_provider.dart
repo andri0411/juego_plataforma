@@ -60,65 +60,73 @@ class _MenuCarouselState extends State<MenuCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: widget.vertical ? 200 : 100,
-      width: widget.vertical ? null : 400,
-      child: PageView.builder(
-        controller: _pageController,
-        scrollDirection: widget.vertical ? Axis.vertical : Axis.horizontal,
-        itemCount: options.length,
-        onPageChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-          widget.onPageChanged?.call(index);
-        },
-        itemBuilder: (context, index) {
-          double selected = widget.selectedIndex.toDouble();
-          double distance = (selected - index).abs();
-          double scale = 1 - (distance * 0.3).clamp(0.0, 0.7);
-          double opacity = 1 - (distance * 0.5).clamp(0.3, 0.7);
+    return Padding(
+      padding: const EdgeInsets.only(left: 0.0),
+      child: SizedBox(
+        height: widget.vertical ? 320 : 160,
+        width: widget.vertical ? null : 520,
+        child: PageView.builder(
+          controller: _pageController,
+          scrollDirection: widget.vertical ? Axis.vertical : Axis.horizontal,
+          itemCount: options.length,
+          onPageChanged: widget.onPageChanged,
+          itemBuilder: (context, index) {
+            double selected = widget.selectedIndex.toDouble();
+            double distance = (selected - index).abs();
+            double scale = 1 - (distance * 0.3).clamp(0.0, 0.7);
+            double opacity = 1 - (distance * 0.5).clamp(0.0, 0.7);
 
-          return Center(
-            child: GestureDetector(
-              onTap: () => _onTap(index),
-              child: Opacity(
-                opacity: opacity,
-                child: Transform.scale(
-                  scale: scale,
-                  child: AnimatedDefaultTextStyle(
-                    duration: Duration(milliseconds: 200),
-                    style: TextStyle(
-                      fontFamily: 'Spectral',
-                      fontStyle: FontStyle.italic,
-                      fontSize: 44,
-                      color: index == _currentIndex
-                          ? Color(0xFFFFD700)
-                          : Colors.grey.shade400,
-                      fontWeight: index == _currentIndex
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      shadows: [
-                        Shadow(
-                          offset: Offset(2, 2),
-                          blurRadius: 8,
-                          color: index == _currentIndex
-                              ? Color(0xFFFFD700).withOpacity(0.5)
-                              : Colors.black54,
+            return Center(
+              child: GestureDetector(
+                onTap: () => _onTap(index),
+                child: Opacity(
+                  opacity: opacity,
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: widget.vertical ? null : 320,
+                      alignment: Alignment.centerRight,
+                      padding: EdgeInsets.only(
+                        right: options[index] == 'Settings' ? 5.0 : 25.0,
+                      ),
+                      child: AnimatedDefaultTextStyle(
+                        duration: Duration(milliseconds: 200),
+                        style: TextStyle(
+                          fontFamily: 'Spectral',
+                          fontStyle: FontStyle.italic,
+                          fontSize: index == widget.selectedIndex ? 36 : 28,
+                          color: index == widget.selectedIndex
+                              ? Color(0xFFFFD700)
+                              : Colors.grey.shade400,
+                          fontWeight: index == widget.selectedIndex
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(2, 2),
+                              blurRadius: 8,
+                              color: index == widget.selectedIndex
+                                  ? Color(0xFFFFD700).withOpacity(0.5)
+                                  : Colors.black54,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      options[index],
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
+                        child: Text(
+                          options[index],
+                          maxLines: options[index] == 'New\nGame' ? 2 : 1,
+                          overflow: options[index] == 'New\nGame'
+                              ? TextOverflow.visible
+                              : TextOverflow.visible,
+                          textAlign: TextAlign.left,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
