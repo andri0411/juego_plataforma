@@ -78,11 +78,14 @@ class _HomeScreenState extends State<HomeScreen>
         return;
       }
       _controller = newController;
+      // Capture volume synchronously after mounted check to avoid using
+      // BuildContext across async gaps.
+      final capturedVolume = context.read<SettingsConfigProvider>().volume;
       setState(() {
         _isInitialized = true;
         _currentVideoAsset = asset;
         _controller.setLooping(looping);
-        _controller.setVolume(context.read<SettingsConfigProvider>().volume);
+        _controller.setVolume(capturedVolume);
         _controller.play();
         _videoOpacity = 1.0;
       });
@@ -180,9 +183,10 @@ class _HomeScreenState extends State<HomeScreen>
             _controller = VideoPlayerController.asset(_videoShowMap);
             await _controller.initialize();
             if (!mounted) return;
-            _controller.setVolume(
-              context.read<SettingsConfigProvider>().volume,
-            );
+            final capturedVolume = context
+                .read<SettingsConfigProvider>()
+                .volume;
+            _controller.setVolume(capturedVolume);
             setState(() {
               _isInitialized = true;
               _currentVideoAsset = _videoShowMap;
@@ -191,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen>
 
             // When showmap finishes, navigate to the actual GameScreen.
             void Function()? showMapListener;
+            final navigator = Navigator.of(context);
             showMapListener = () {
               final duration2 = _controller.value.duration;
               final position2 = _controller.value.position;
@@ -204,9 +209,9 @@ class _HomeScreenState extends State<HomeScreen>
                     await _controller.dispose();
                   } catch (_) {}
                   if (!mounted) return;
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const GameScreen()));
+                  navigator.push(
+                    MaterialPageRoute(builder: (_) => const GameScreen()),
+                  );
                 });
               }
             };
@@ -247,7 +252,8 @@ class _HomeScreenState extends State<HomeScreen>
       _controller.setLooping(false);
     }
     if (!mounted) return;
-    _controller.setVolume(context.read<SettingsConfigProvider>().volume);
+    final capturedVolume = context.read<SettingsConfigProvider>().volume;
+    _controller.setVolume(capturedVolume);
     setState(() {
       _isInitialized = true;
       _currentVideoAsset = asset;
@@ -300,6 +306,11 @@ class _HomeScreenState extends State<HomeScreen>
                     right: 32,
                     child: GestureDetector(
                       onTap: () async {
+                        // Capture provider value before any `await` to avoid using
+                        // BuildContext across async gaps (fixes analyzer warning).
+                        final capturedVolume = context
+                            .read<SettingsConfigProvider>()
+                            .volume;
                         setState(() => _videoOpacity = 0.0);
                         await Future.delayed(const Duration(milliseconds: 300));
                         try {
@@ -320,9 +331,7 @@ class _HomeScreenState extends State<HomeScreen>
                           _fadeToBlack = 0.0;
                         });
                         _controller.setLooping(true);
-                        _controller.setVolume(
-                          context.read<SettingsConfigProvider>().volume,
-                        );
+                        _controller.setVolume(capturedVolume);
                         _controller.play();
                         await Future.delayed(const Duration(milliseconds: 200));
                         if (!mounted) return;

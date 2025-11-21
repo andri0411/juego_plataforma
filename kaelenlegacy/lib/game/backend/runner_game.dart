@@ -20,7 +20,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   GameState gameState = GameState.intro;
   Player? player;
   @override
-  late double groundHeight;
+  double groundHeight = 120.0;
   ui.Image? _groundImage;
   ui.Image? _spikeImage;
   Uint8List? _spikePixels;
@@ -43,9 +43,25 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    await images.load('map.png');
-    _groundImage = images.fromCache('map.png');
-    _groundTopTrim = await _computeTopNonTransparent(_groundImage!);
+    // Load ground/map image. If it fails, don't throw: provide a simple
+    // fallback ground so the game can continue in local testing.
+    try {
+      await images.load('map.png');
+      _groundImage = images.fromCache('map.png');
+      if (_groundImage != null) {
+        _groundTopTrim = await _computeTopNonTransparent(_groundImage!);
+      } else {
+        _groundTopTrim = 0;
+        debugPrint('⚠️ map.png loaded but fromCache returned null');
+      }
+    } catch (e) {
+      // Don't rethrow: we want to allow the game to continue without map.png
+      debugPrint('⚠️ Could not load assets/images/map.png: $e');
+      _groundImage = null;
+      _groundTopTrim = 0;
+      // Provide a safe default ground height so later logic doesn't crash.
+      groundHeight = 120.0;
+    }
 
     try {
       await images.load('pinchos.png');
@@ -108,8 +124,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   }
 
   void _buildScene(Vector2 canvasSize) {
-    if (_groundImage == null) return;
-
+    // Clear previous ground/homing spike components
     for (final c in _groundComponents) {
       remove(c);
     }
@@ -120,17 +135,34 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     }
     _homingSpikes.clear();
 
-    final scene = buildGroundParts(
-      _groundImage!,
-      canvasSize,
-      _groundTopTrim ?? 0,
-    );
-    for (final c in scene.components) {
-      add(c);
-      _groundComponents.add(c);
+    double visibleTop;
+    // If we have a ground image, build detailed ground parts. Otherwise
+    // create a simple fallback ground rectangle so the scene can start.
+    if (_groundImage != null) {
+      final scene = buildGroundParts(
+        _groundImage!,
+        canvasSize,
+        _groundTopTrim ?? 0,
+      );
+      for (final c in scene.components) {
+        add(c);
+        _groundComponents.add(c);
+      }
+      groundHeight = scene.groundHeight;
+      visibleTop = scene.visibleTop;
+    } else {
+      // Simple fallback ground: a rectangle at the bottom of the screen.
+      final fallbackHeight = groundHeight <= 0 ? 120.0 : groundHeight;
+      final groundRect = RectangleComponent(
+        position: Vector2(0, canvasSize.y - fallbackHeight),
+        size: Vector2(canvasSize.x, fallbackHeight),
+        paint: ui.Paint()..color = const ui.Color(0xFF7B4F1E),
+      )..anchor = Anchor.topLeft;
+      add(groundRect);
+      _groundComponents.add(groundRect);
+      groundHeight = fallbackHeight;
+      visibleTop = canvasSize.y - groundHeight;
     }
-    groundHeight = scene.groundHeight;
-    final visibleTop = scene.visibleTop;
 
     _doorRect = null;
     if (_doorImage != null) {
@@ -168,7 +200,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     // SpikeManager will populate spikes from local assets if needed.
   }
 
-  void _addPinchos(double visibleTop) {
+  void addPinchos(double visibleTop) {
     // Remove previous spikes
     for (final c in _spikeComponents) {
       remove(c);
