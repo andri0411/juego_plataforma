@@ -6,7 +6,6 @@ import 'providers/menu_carousel_provider.dart';
 import 'package:provider/provider.dart';
 import 'providers/settings_config_provider.dart';
 import 'widgets/login_widget.dart';
-import '../../game/app.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,40 +16,32 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  // Non-nullable controller initialized with a dummy asset
-  late VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   late AnimationController _fadeController;
   bool _isInitialized = false;
   double _videoOpacity = 1.0;
-  String _currentVideoAsset = _videoFlame;
 
   // Nueva variable para controlar la animación de carga
   bool _showPreHome = true;
-  int _menuSelectedIndex = 0;
+  int _menuSelectedIndex = 0; // <-- Nuevo estado
   double _zoomScale = 1.0;
   bool _isZooming = false;
   bool _isTransitioning = false;
   double _fadeToBlack = 0.0;
 
-  // Video asset constants
-  static const String _videoFlame = 'assets/videos/flame.mp4';
-  static const String _videoIntro = 'assets/videos/intro.mp4';
-  static const String _videoNewGameIntro = 'assets/videos/newgameintro.mp4';
-  static const String _videoShowMap = 'assets/videos/showmap.mp4';
-  static const String _videoStore = 'assets/videos/store.mp4';
-  static const String _videoSettings = 'assets/videos/settings.mp4';
-
   @override
   void initState() {
     super.initState();
-    // Initialize with dummy controller
-    _controller = VideoPlayerController.asset(_videoFlame);
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
-    // Inicia con el video de carga principal
-    _initAndPlayAsset(_videoFlame, looping: false, addPreListener: true);
+    // Inicia con el video de carga principal (usar helper para manejo de errores)
+    _initAndPlayAsset(
+      'assets/videos/flame.mp4',
+      looping: false,
+      addPreListener: true,
+    );
   }
 
   Future<void> _initAndPlayAsset(
@@ -59,20 +50,18 @@ class _HomeScreenState extends State<HomeScreen>
     bool addPreListener = false,
   }) async {
     try {
-      // Dispose any existing controller safely
-      try {
-        await _controller.pause();
-      } catch (_) {}
-      try {
-        await _controller.dispose();
-      } catch (_) {}
+      // dispose any existing controller safely
+      if (_controller != null) {
+        try {
+          await _controller!.pause();
+        } catch (_) {}
+        try {
+          await _controller!.dispose();
+        } catch (_) {}
+      }
 
       final newController = VideoPlayerController.asset(asset);
-      debugPrint('📺 Inicializando video asset: $asset');
       await newController.initialize();
-      debugPrint(
-        '📺 Video initialized: $asset, duration=${newController.value.duration}, size=${newController.value.size}, isPlaying=${newController.value.isPlaying}',
-      );
       if (!mounted) {
         await newController.dispose();
         return;
@@ -80,16 +69,14 @@ class _HomeScreenState extends State<HomeScreen>
       _controller = newController;
       setState(() {
         _isInitialized = true;
-        _currentVideoAsset = asset;
-        _controller.setLooping(looping);
-        _controller.setVolume(context.read<SettingsConfigProvider>().volume);
-        _controller.play();
+        _controller!.setLooping(looping);
+        _controller!.setVolume(context.read<SettingsConfigProvider>().volume);
+        _controller!.play();
         _videoOpacity = 1.0;
       });
       _fadeController.forward();
       if (addPreListener) {
-        _controller.addListener(_preHomeListener);
-        debugPrint('🔔 Added pre-home listener for $asset');
+        _controller!.addListener(_preHomeListener);
       }
     } catch (e, st) {
       debugPrint('❌ Error inicializando video "$asset": $e');
@@ -103,19 +90,14 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _preHomeListener() async {
-    final duration = _controller.value.duration;
-    final position = _controller.value.position;
-    debugPrint(
-      '🎬 preHomeListener: current=$_currentVideoAsset, pos=$position, dur=$duration',
-    );
+    if (_controller == null) return;
+    final duration = _controller!.value.duration;
+    final position = _controller!.value.position;
     if (duration.inMilliseconds > 0 && position >= duration) {
-      _controller.removeListener(_preHomeListener);
-      try {
-        await _controller.pause();
-      } catch (_) {}
-      try {
-        await _controller.dispose();
-      } catch (_) {}
+      _controller!.removeListener(_preHomeListener);
+      await _controller!.pause();
+      await _controller!.dispose();
+      _controller = null;
       // Cambia a la pantalla principal (home)
       if (!mounted) return;
       setState(() {
@@ -123,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen>
         _isInitialized = false;
       });
       // Inicializa el video de fondo principal
-      await _initAndPlayAsset(_videoIntro, looping: true);
+      await _initAndPlayAsset('assets/videos/intro.mp4', looping: true);
     }
   }
 
@@ -133,12 +115,13 @@ class _HomeScreenState extends State<HomeScreen>
     if (cleanOption == 'New Game') {
       setState(() => _videoOpacity = 0.0);
       await Future.delayed(const Duration(milliseconds: 500));
-      await _initAndPlayAsset(_videoNewGameIntro, looping: false);
-
+      await _initAndPlayAsset('assets/videos/newgameintro.mp4', looping: false);
+      
       // Add listener for transition to showmap
-      _controller.addListener(() async {
-        final duration = _controller.value.duration;
-        final position = _controller.value.position;
+      _controller?.addListener(() async {
+        if (_controller == null) return;
+        final duration = _controller!.value.duration;
+        final position = _controller!.value.position;
         if (duration.inMilliseconds > 0) {
           if (!_isZooming &&
               duration.inMilliseconds - position.inMilliseconds <= 2000) {
@@ -148,7 +131,6 @@ class _HomeScreenState extends State<HomeScreen>
               _fadeToBlack = 0.0;
             });
             Future.delayed(const Duration(milliseconds: 100), () {
-              if (!mounted) return;
               setState(() {
                 _zoomScale = 1.2;
                 _fadeToBlack = 1.0;
@@ -160,15 +142,8 @@ class _HomeScreenState extends State<HomeScreen>
               _isTransitioning = true;
             });
             await Future.delayed(const Duration(milliseconds: 200));
-            try {
-              await _controller.pause();
-            } catch (_) {}
-            try {
-              await _controller.dispose();
-            } catch (_) {}
-            debugPrint(
-              '🔁 preHomeListener: switched from $_currentVideoAsset to $_videoIntro',
-            );
+            await _controller.pause();
+            await _controller.dispose();
             setState(() {
               _videoOpacity = 0.0;
               _isInitialized = false;
@@ -177,7 +152,9 @@ class _HomeScreenState extends State<HomeScreen>
               _fadeToBlack = 0.0;
               _isTransitioning = false;
             });
-            _controller = VideoPlayerController.asset(_videoShowMap);
+            _controller = VideoPlayerController.asset(
+              'assets/videos/showmap.mp4',
+            );
             await _controller.initialize();
             if (!mounted) return;
             _controller.setVolume(
@@ -185,35 +162,9 @@ class _HomeScreenState extends State<HomeScreen>
             );
             setState(() {
               _isInitialized = true;
-              _currentVideoAsset = _videoShowMap;
             });
             _controller.play();
-
-            // When showmap finishes, navigate to the actual GameScreen.
-            void Function()? showMapListener;
-            showMapListener = () {
-              final duration2 = _controller.value.duration;
-              final position2 = _controller.value.position;
-              if (duration2.inMilliseconds > 0 && position2 >= duration2) {
-                _controller.removeListener(showMapListener!);
-                Future.microtask(() async {
-                  try {
-                    await _controller.pause();
-                  } catch (_) {}
-                  try {
-                    await _controller.dispose();
-                  } catch (_) {}
-                  if (!mounted) return;
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const GameScreen()));
-                });
-              }
-            };
-            _controller.addListener(showMapListener);
-
             await Future.delayed(const Duration(milliseconds: 400));
-            if (!mounted) return;
             setState(() {
               _videoOpacity = 1.0;
             });
@@ -231,17 +182,13 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _changeVideo(String asset) async {
     setState(() => _videoOpacity = 0.0);
     await Future.delayed(const Duration(milliseconds: 100));
-    try {
-      await _controller.pause();
-    } catch (_) {}
-    try {
-      await _controller.dispose();
-    } catch (_) {}
+    await _controller.pause();
+    await _controller.dispose();
     _controller = VideoPlayerController.asset(asset);
     await _controller.initialize();
-    if (asset == _videoIntro ||
-        asset == _videoStore ||
-        asset == _videoSettings) {
+    if (asset == 'assets/videos/intro.mp4' ||
+        asset == 'assets/videos/store.mp4' ||
+        asset == 'assets/videos/settings.mp4') {
       _controller.setLooping(true);
     } else {
       _controller.setLooping(false);
@@ -250,12 +197,10 @@ class _HomeScreenState extends State<HomeScreen>
     _controller.setVolume(context.read<SettingsConfigProvider>().volume);
     setState(() {
       _isInitialized = true;
-      _currentVideoAsset = asset;
       _videoOpacity = 0.0;
     });
     _controller.play();
     await Future.delayed(const Duration(milliseconds: 100));
-    if (!mounted) return;
     setState(() => _videoOpacity = 1.0);
   }
 
@@ -294,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen>
                     height: double.infinity,
                   ),
                 ),
-                if (_currentVideoAsset == _videoShowMap)
+                if (_controller.dataSource == 'assets/videos/showmap.mp4')
                   Positioned(
                     bottom: 32,
                     right: 32,
@@ -302,41 +247,39 @@ class _HomeScreenState extends State<HomeScreen>
                       onTap: () async {
                         setState(() => _videoOpacity = 0.0);
                         await Future.delayed(const Duration(milliseconds: 300));
-                        try {
-                          await _controller.pause();
-                        } catch (_) {}
-                        try {
-                          await _controller.dispose();
-                        } catch (_) {}
-                        _controller = VideoPlayerController.asset(_videoIntro);
+                        await _controller.pause();
+                        await _controller.dispose();
+                        _controller = VideoPlayerController.asset(
+                          'assets/videos/intro.mp4',
+                        );
                         await _controller.initialize();
-                        if (!mounted) return;
                         setState(() {
                           _isInitialized = true;
-                          _currentVideoAsset = _videoIntro;
                           _showPreHome = false;
                           _videoOpacity = 0.0;
                           _zoomScale = 1.0;
                           _fadeToBlack = 0.0;
                         });
                         _controller.setLooping(true);
-                        _controller.setVolume(
-                          context.read<SettingsConfigProvider>().volume,
-                        );
                         _controller.play();
                         await Future.delayed(const Duration(milliseconds: 200));
-                        if (!mounted) return;
+                        setState(() {
+                          _videoOpacity = 1.0;
+                        });
+                        _controller.setLooping(true);
+                        _controller.play();
+                        await Future.delayed(const Duration(milliseconds: 200));
                         setState(() {
                           _videoOpacity = 1.0;
                         });
                       },
-                      child: const Text(
+                      child: Text(
                         'exit',
                         style: TextStyle(
                           fontFamily: 'Spectral',
                           color: Colors.white,
                           fontSize: 35,
-                          fontWeight: FontWeight.w300,
+                          fontWeight: FontWeight.w300, // Light
                           shadows: [
                             Shadow(
                               offset: Offset(2, 2),
@@ -351,7 +294,8 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           // Efecto blur para Settings solo si el video es settings.mp4
-          if (_isInitialized && _currentVideoAsset == _videoSettings)
+          if (_isInitialized &&
+              _controller.dataSource == 'assets/videos/settings.mp4')
             Align(
               alignment: Alignment.centerLeft,
               child: SizedBox(
@@ -371,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen>
                         mainAxisAlignment: MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Configuración',
                             style: TextStyle(
                               fontFamily: 'Spectral',
@@ -388,8 +332,8 @@ class _HomeScreenState extends State<HomeScreen>
                               ],
                             ),
                           ),
-                          const SizedBox(height: 32),
-                          const Text(
+                          SizedBox(height: 32),
+                          Text(
                             'Volumen',
                             style: TextStyle(
                               fontFamily: 'Spectral',
@@ -417,8 +361,8 @@ class _HomeScreenState extends State<HomeScreen>
                             activeColor: Colors.amber,
                             inactiveColor: Colors.white24,
                           ),
-                          const SizedBox(height: 32),
-                          const Text(
+                          SizedBox(height: 32),
+                          Text(
                             'Cuenta',
                             style: TextStyle(
                               fontFamily: 'Spectral',
@@ -427,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen>
                               fontWeight: FontWeight.w300,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.amber,
@@ -436,7 +380,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 horizontal: 24,
                                 vertical: 12,
                               ),
-                              textStyle: const TextStyle(
+                              textStyle: TextStyle(
                                 fontFamily: 'Spectral',
                                 fontSize: 20,
                                 fontWeight: FontWeight.w300,
@@ -452,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                               );
                             },
-                            child: const Text(
+                            child: Text(
                               'Iniciar sesión',
                               style: TextStyle(
                                 fontFamily: 'Spectral',
@@ -469,10 +413,10 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           // Si no está inicializado, mostrar cargando (mejora UX)
           if (!_isInitialized)
-            const Center(
+            Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: [
+                children: const [
                   CircularProgressIndicator(),
                   SizedBox(height: 12),
                   Text('Cargando...', style: TextStyle(color: Colors.white)),
@@ -482,7 +426,8 @@ class _HomeScreenState extends State<HomeScreen>
 
           // Solo muestra el home si terminó la animación de carga principal
           // Sombra izquierda: sólo cuando el fondo es el video por defecto (intro.mp4)
-          if (!_showPreHome && _currentVideoAsset == _videoIntro)
+          if (!_showPreHome &&
+              (_controller.dataSource == 'assets/videos/intro.mp4'))
             Align(
               alignment: Alignment.centerLeft,
               child: Container(
@@ -513,9 +458,9 @@ class _HomeScreenState extends State<HomeScreen>
                           color: Colors.black38,
                         ),
                         Shadow(
-                          offset: const Offset(0, 0),
+                          offset: Offset(0, 0),
                           blurRadius: 10,
-                          color: const Color(0xFFFFD700).withValues(alpha: 0.3),
+                          color: Color(0xFFFFD700).withValues(alpha: 0.3),
                         ),
                       ],
                     ),
@@ -525,8 +470,8 @@ class _HomeScreenState extends State<HomeScreen>
             ),
 
           if (!_showPreHome &&
-              _currentVideoAsset != _videoNewGameIntro &&
-              _currentVideoAsset != _videoShowMap)
+              _controller.dataSource != 'assets/videos/newgameintro.mp4' &&
+              _controller.dataSource != 'assets/videos/showmap.mp4')
             Align(
               alignment: Alignment.centerRight,
               child: Container(
@@ -544,8 +489,8 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           if (!_showPreHome &&
               _isInitialized &&
-              _currentVideoAsset != _videoNewGameIntro &&
-              _currentVideoAsset != _videoShowMap)
+              _controller.dataSource != 'assets/videos/newgameintro.mp4' &&
+              _controller.dataSource != 'assets/videos/showmap.mp4')
             Positioned(
               top: MediaQuery.of(context).size.height * 0.18,
               right: 32,
@@ -561,19 +506,25 @@ class _HomeScreenState extends State<HomeScreen>
                       _menuSelectedIndex = index;
                     });
                     // Cambia el fondo/video al cambiar de opción
-                    const options = ['New Game', 'Store', 'Settings', 'Quit'];
-                    final option = options[index];
+                    final option = [
+                      'New Game',
+                      'Store',
+                      'Settings',
+                      'Quit',
+                    ][index];
                     if (option == 'Store' &&
-                        _currentVideoAsset != _videoStore) {
-                      await _changeVideo(_videoStore);
+                        _controller.dataSource != 'assets/videos/store.mp4') {
+                      await _changeVideo('assets/videos/store.mp4');
                     } else if (option == 'Settings' &&
-                        _currentVideoAsset != _videoSettings) {
-                      await _changeVideo(_videoSettings);
+                        _controller.dataSource !=
+                            'assets/videos/settings.mp4') {
+                      await _changeVideo('assets/videos/settings.mp4');
                     } else if (option != 'Store' &&
                         option != 'Settings' &&
-                        (_currentVideoAsset == _videoStore ||
-                            _currentVideoAsset == _videoSettings)) {
-                      await _changeVideo(_videoIntro);
+                        (_controller.dataSource == 'assets/videos/store.mp4' ||
+                            _controller.dataSource ==
+                                'assets/videos/settings.mp4')) {
+                      await _changeVideo('assets/videos/intro.mp4');
                     }
                   },
                 ),

@@ -7,12 +7,12 @@ class MenuCarousel extends StatefulWidget {
   final ValueChanged<int>? onPageChanged;
 
   const MenuCarousel({
+    super.key,
     this.vertical = false,
     this.onOptionChanged,
     this.selectedIndex = 0,
     this.onPageChanged,
-    Key? key,
-  }) : super(key: key);
+  });
 
   @override
   State<MenuCarousel> createState() => _MenuCarouselState();
@@ -48,7 +48,7 @@ class _MenuCarouselState extends State<MenuCarousel> {
   }
 
   void _onTap(int index) {
-    print('Tap en opción: ${options[index]}');
+    debugPrint('Tap en opción: ${options[index]}');
     widget.onOptionChanged?.call(
       options[index],
     ); // Solo aquí se activa la acción

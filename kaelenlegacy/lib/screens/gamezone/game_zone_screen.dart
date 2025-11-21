@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:kaelenlegacy/screens/home/home_screen.dart' show SplashScreen;
+// Removed unused import: SplashScreen is not exported from home_screen
 
 class GameZoneScreen extends StatefulWidget {
   final VoidCallback? onVideoEnd;
-  const GameZoneScreen({Key? key, this.onVideoEnd}) : super(key: key);
+  const GameZoneScreen({super.key, this.onVideoEnd});
 
   @override
   State<GameZoneScreen> createState() => _GameZoneScreenState();
@@ -23,10 +23,6 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
   void initState() {
     super.initState();
     _controller = VideoPlayerController.asset('assets/videos/newgameintro.mp4');
-    _controller.initialize().then((_) {
-      setState(() {});
-      _controller.play();
-    });
     _videoListener = () async {
       final position = _controller.value.position;
       duration = _controller.value.duration;
@@ -75,7 +71,25 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
         }
       }
     };
-    _controller.addListener(_videoListener);
+    _initControllerWithListener(_controller, _videoListener);
+  }
+
+  Future<void> _initControllerWithListener(
+    VideoPlayerController controller,
+    VoidCallback listener,
+  ) async {
+    try {
+      await controller.initialize();
+      if (!mounted) return;
+      setState(() {});
+      controller.play();
+      controller.addListener(listener);
+    } catch (e, st) {
+      debugPrint('Error inicializando video de GameZone: $e');
+      debugPrint('$st');
+      if (!mounted) return;
+      setState(() {});
+    }
   }
 
   @override
@@ -99,10 +113,18 @@ class _GameZoneScreenState extends State<GameZoneScreen> {
                     curve: Curves.easeInOut,
                     child: SizedBox.expand(child: VideoPlayer(_controller)),
                   )
-                : Container(
-                    color: Colors.black,
-                    width: double.infinity,
-                    height: double.infinity,
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 8),
+                        Text(
+                          'Cargando video...',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
             // Overlay negro para fade-out/fade-in
             AnimatedOpacity(

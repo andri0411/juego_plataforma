@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'package:kaelenlegacy/screens/home/home_screen.dart'; // Importa el widget HomeScreen
+// Removed import of HomeScreen; navigation will return to the first route instead
 import 'package:video_player/video_player.dart'; // Importa el widget VideoPlayer
 
 class LoginWidget extends StatefulWidget {
-  const LoginWidget({Key? key}) : super(key: key);
+  const LoginWidget({super.key});
 
   @override
   State<LoginWidget> createState() => _LoginWidgetState();
@@ -17,14 +17,27 @@ class _LoginWidgetState extends State<LoginWidget> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.asset('assets/videos/intro.mp4')
-      ..initialize().then((_) {
-        setState(() {
-          _isInitialized = true;
-          _controller.setLooping(true);
-          _controller.play();
-        });
+    _controller = VideoPlayerController.asset('assets/videos/intro.mp4');
+    _initLoginVideo();
+  }
+
+  Future<void> _initLoginVideo() async {
+    try {
+      await _controller.initialize();
+      if (!mounted) return;
+      setState(() {
+        _isInitialized = true;
+        _controller.setLooping(true);
+        _controller.play();
       });
+    } catch (e, st) {
+      debugPrint('Error inicializando Login video: $e');
+      debugPrint('$st');
+      if (!mounted) return;
+      setState(() {
+        _isInitialized = false;
+      });
+    }
   }
 
   @override
@@ -40,28 +53,27 @@ class _LoginWidgetState extends State<LoginWidget> {
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          if (_isInitialized) SizedBox.expand(child: VideoPlayer(_controller)),
+          if (_isInitialized)
+            SizedBox.expand(child: VideoPlayer(_controller))
+          else
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text('Cargando...', style: TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
           // Botón "X" en la esquina superior izquierda
           Positioned(
             top: 24,
             left: 24,
             child: IconButton(
-              icon: Icon(Icons.close, color: Colors.white, size: 32),
+              icon: const Icon(Icons.close, color: Colors.white, size: 32),
               onPressed: () {
-                Navigator.of(context).pushReplacement(
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        HomeScreen(), // Regresa a HomeScreen
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: child,
-                          );
-                        },
-                    transitionDuration: Duration(milliseconds: 400),
-                  ),
-                );
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
               tooltip: 'Cerrar',
             ),
@@ -78,7 +90,7 @@ class _LoginWidgetState extends State<LoginWidget> {
                   filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
+                      color: const Color.fromRGBO(0, 0, 0, 0.7),
                       borderRadius: BorderRadius.zero,
                     ),
                     padding: const EdgeInsets.all(32),
@@ -158,7 +170,11 @@ class _LoginWidgetState extends State<LoginWidget> {
 class CustomInputField extends StatefulWidget {
   final String hintText;
   final bool obscureText;
-  const CustomInputField({required this.hintText, required this.obscureText});
+  const CustomInputField({
+    super.key,
+    required this.hintText,
+    required this.obscureText,
+  });
 
   @override
   State<CustomInputField> createState() => _CustomInputFieldState();
@@ -166,7 +182,6 @@ class CustomInputField extends StatefulWidget {
 
 class _CustomInputFieldState extends State<CustomInputField> {
   final TextEditingController _controller = TextEditingController();
-  bool _hasFocus = false;
 
   @override
   void initState() {
@@ -184,7 +199,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
 
   @override
   Widget build(BuildContext context) {
-    final bool showGold = _hasFocus || _controller.text.isNotEmpty;
+    final bool showGold = _controller.text.isNotEmpty;
     return TextField(
       controller: _controller,
       obscureText: widget.obscureText,
