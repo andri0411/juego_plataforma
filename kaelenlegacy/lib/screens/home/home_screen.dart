@@ -244,22 +244,87 @@ class _HomeScreenState extends State<HomeScreen>
                   duration: const Duration(milliseconds: 600),
                   child: Container(height: double.infinity),
                 ),
-                // Mostrar la puerta solo durante showmap.mp4
+                // Mostrar 5 puertas en fila al finalizar showmap.mp4
                 if (_currentVideoAsset == _videoShowMap && _showDoor)
-                  Center(
-                    child: GestureDetector(
-                      onTap: () async {
-                        setState(() => _showDoor = false);
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const GameScreen()),
-                        );
-                      },
-                      child: Image.asset(
-                        'assets/images/door.png',
-                        width: 180,
-                        height: 270,
+                  Stack(
+                    children: [
+                      // Puerta 1
+                      Positioned(
+                        top: 0,
+                        left: MediaQuery.of(context).size.width / 2 - 320,
+                        child: GestureDetector(
+                          onTap: () async {
+                            setState(() => _showDoor = false);
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const GameScreen(),
+                              ),
+                            );
+                          },
+                          child: Image.asset(
+                            'assets/images/door.png',
+                            width: 130,
+                            height: 195,
+                          ),
+                        ),
                       ),
-                    ),
+                      // Puerta 2
+                      Positioned(
+                        top: 100,
+                        left: MediaQuery.of(context).size.width / 2 - 160,
+                        child: GestureDetector(
+                          onTap: null,
+                          child: Image.asset(
+                            'assets/images/door.png',
+                            width: 130,
+                            height: 195,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                      // Puerta 3
+                      Positioned(
+                        top: 190,
+                        left: MediaQuery.of(context).size.width / 2,
+                        child: GestureDetector(
+                          onTap: null,
+                          child: Image.asset(
+                            'assets/images/door.png',
+                            width: 130,
+                            height: 195,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                      // Puerta 4
+                      Positioned(
+                        top: 40,
+                        left: MediaQuery.of(context).size.width / 2 + 130 + 24,
+                        child: GestureDetector(
+                          onTap: null,
+                          child: Image.asset(
+                            'assets/images/door.png',
+                            width: 130,
+                            height: 195,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                      // Puerta 5
+                      Positioned(
+                        top: 200,
+                        left: MediaQuery.of(context).size.width / 2 + 2 * (130),
+                        child: GestureDetector(
+                          onTap: null,
+                          child: Image.asset(
+                            'assets/images/door.png',
+                            width: 130,
+                            height: 195,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
                   )
                 else if (_currentVideoAsset == _videoShowMap)
                   AnimatedOpacity(
