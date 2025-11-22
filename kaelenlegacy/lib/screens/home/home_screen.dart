@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isZooming = false;
   bool _isTransitioning = false;
   double _fadeToBlack = 0.0;
+  bool _showDoor = false;
 
   // Video asset constants
   static const String _videoFlame = 'assets/videos/flame.mp4';
@@ -138,93 +139,41 @@ class _HomeScreenState extends State<HomeScreen>
       await Future.delayed(const Duration(milliseconds: 500));
       await _initAndPlayAsset(_videoNewGameIntro, looping: false);
 
-      // Add listener for transition to showmap
-      _controller.addListener(() async {
+      // Listener para pasar a showmap.mp4 al terminar newgameintro.mp4
+      void newGameIntroListener() async {
         final duration = _controller.value.duration;
         final position = _controller.value.position;
-        if (duration.inMilliseconds > 0) {
-          if (!_isZooming &&
-              duration.inMilliseconds - position.inMilliseconds <= 2000) {
-            setState(() {
-              _isZooming = true;
-              _zoomScale = 1.0;
-              _fadeToBlack = 0.0;
-            });
-            Future.delayed(const Duration(milliseconds: 100), () {
+        if (duration.inMilliseconds > 0 && position >= duration) {
+          _controller.removeListener(newGameIntroListener);
+          try {
+            await _controller.pause();
+          } catch (_) {}
+          if (!mounted) return;
+          await _initAndPlayAsset(_videoShowMap, looping: false);
+
+          // Listener para mostrar la puerta al terminar showmap.mp4
+          void showMapListener() async {
+            final duration2 = _controller.value.duration;
+            final position2 = _controller.value.position;
+            if (duration2.inMilliseconds > 0 &&
+                position2 >= duration2 &&
+                !_showDoor) {
+              _controller.removeListener(showMapListener);
+              try {
+                await _controller.pause();
+              } catch (_) {}
               if (!mounted) return;
               setState(() {
-                _zoomScale = 1.2;
-                _fadeToBlack = 1.0;
+                _showDoor = true;
               });
-            });
+            }
           }
-          if (position >= duration && !_isTransitioning) {
-            setState(() {
-              _isTransitioning = true;
-            });
-            await Future.delayed(const Duration(milliseconds: 200));
-            try {
-              await _controller.pause();
-            } catch (_) {}
-            try {
-              await _controller.dispose();
-            } catch (_) {}
-            debugPrint(
-              '🔁 preHomeListener: switched from $_currentVideoAsset to $_videoIntro',
-            );
-            setState(() {
-              _videoOpacity = 0.0;
-              _isInitialized = false;
-              _isZooming = false;
-              _zoomScale = 1.0;
-              _fadeToBlack = 0.0;
-              _isTransitioning = false;
-            });
-            _controller = VideoPlayerController.asset(_videoShowMap);
-            await _controller.initialize();
-            if (!mounted) return;
-            final capturedVolume = context
-                .read<SettingsConfigProvider>()
-                .volume;
-            _controller.setVolume(capturedVolume);
-            setState(() {
-              _isInitialized = true;
-              _currentVideoAsset = _videoShowMap;
-            });
-            _controller.play();
 
-            // When showmap finishes, navigate to the actual GameScreen.
-            void Function()? showMapListener;
-            final navigator = Navigator.of(context);
-            showMapListener = () {
-              final duration2 = _controller.value.duration;
-              final position2 = _controller.value.position;
-              if (duration2.inMilliseconds > 0 && position2 >= duration2) {
-                _controller.removeListener(showMapListener!);
-                Future.microtask(() async {
-                  try {
-                    await _controller.pause();
-                  } catch (_) {}
-                  try {
-                    await _controller.dispose();
-                  } catch (_) {}
-                  if (!mounted) return;
-                  navigator.push(
-                    MaterialPageRoute(builder: (_) => const GameScreen()),
-                  );
-                });
-              }
-            };
-            _controller.addListener(showMapListener);
-
-            await Future.delayed(const Duration(milliseconds: 400));
-            if (!mounted) return;
-            setState(() {
-              _videoOpacity = 1.0;
-            });
-          }
+          _controller.addListener(showMapListener);
         }
-      });
+      }
+
+      _controller.addListener(newGameIntroListener);
     }
     if (cleanOption == 'Quit') {
       Future.delayed(const Duration(milliseconds: 300), () {
@@ -287,19 +236,41 @@ class _HomeScreenState extends State<HomeScreen>
                   child: AnimatedScale(
                     scale: _zoomScale,
                     duration: const Duration(milliseconds: 600),
-                    curve: Curves.easeInOut,
                     child: SizedBox.expand(child: VideoPlayer(_controller)),
                   ),
                 ),
                 AnimatedOpacity(
                   opacity: _fadeToBlack,
                   duration: const Duration(milliseconds: 600),
-                  child: Container(
-                    color: Colors.black,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
+                  child: Container(height: double.infinity),
                 ),
+                // Mostrar la puerta solo durante showmap.mp4
+                if (_currentVideoAsset == _videoShowMap && _showDoor)
+                  Center(
+                    child: GestureDetector(
+                      onTap: () async {
+                        setState(() => _showDoor = false);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const GameScreen()),
+                        );
+                      },
+                      child: Image.asset(
+                        'assets/images/door.png',
+                        width: 180,
+                        height: 270,
+                      ),
+                    ),
+                  )
+                else if (_currentVideoAsset == _videoShowMap)
+                  AnimatedOpacity(
+                    opacity: _videoOpacity,
+                    duration: const Duration(milliseconds: 800),
+                    child: AnimatedScale(
+                      scale: _zoomScale,
+                      duration: const Duration(milliseconds: 600),
+                      child: SizedBox.expand(child: VideoPlayer(_controller)),
+                    ),
+                  ),
                 if (_currentVideoAsset == _videoShowMap)
                   Positioned(
                     bottom: 32,
@@ -563,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen>
                 width: 120,
                 child: MenuCarousel(
                   vertical: true,
-                  onOptionChanged: _onMenuOptionChanged,
+                  onOptionChanged: (option) => _onMenuOptionChanged(option),
                   selectedIndex: _menuSelectedIndex,
                   onPageChanged: (index) async {
                     setState(() {
