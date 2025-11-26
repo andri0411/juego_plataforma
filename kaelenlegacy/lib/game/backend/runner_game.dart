@@ -43,6 +43,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   bool _inVoidFalling = false;
   double _voidFallTimer = 0.0;
   final double _voidFallTimeout = 0.35; // seconds before registering death
+  bool _deathHandled = false;
 
   @override
   Future<void> onLoad() async {
@@ -419,12 +420,11 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
   void _onSecondLevelDeath() {
     if (!_secondLevelActive) return;
-    // Use existing death flow
+    if (_deathHandled) return;
+    _deathHandled = true;
+    // Use existing death flow (pauses engine and shows GameOver overlay)
     onPlayerDied();
-    // After short delay, restart the second level
-    Future.delayed(Duration(milliseconds: 1200), () {
-      _restartSecondLevel();
-    });
+    // Do NOT auto-restart: wait for player to press the overlay button to restart level 2.
   }
 
   /// Rebuilds second level state (tiles, door, player position) when restarting
@@ -529,6 +529,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     // re-enable second level
     _secondLevelActive = true;
     _doorUsed = true;
+    _deathHandled = false;
     resumeEngine();
   }
 
