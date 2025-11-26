@@ -1,274 +1,689 @@
 import 'dart:ui' as ui;
 
+// import 'package:flame/parallax.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import 'player/player.dart';
+import 'dart:typed_data';
 import 'obstacles/spikes.dart';
-import 'obstacles/spike_manager.dart';
-// Supabase calls disabled for local testing
-import 'scene/scene_builder.dart';
-import 'scene/scene_loader.dart';
 import 'game_api.dart';
 import 'collision_utils.dart';
 
+enum DoorState { idle, closing, closed, opening, opened }
+
 class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
-  @override
   GameState gameState = GameState.intro;
   Player? player;
-  @override
-  double groundHeight = 120.0;
-  ui.Image? _groundImage;
-  ui.Image? _spikeImage;
-  Uint8List? _spikePixels;
-  ui.Image? _doorImage;
-  late SpikeManager spikeManager;
-  // Supabase disabled for local testing; we always use local level data
-  // These are read dynamically by `Player` (outside this file).
-  // ignore: unused_field
-  Uint8List? _doorPixels;
-  // ignore: unused_field
-  Vector2? _doorNaturalSize;
-  // ignore: unused_field
-  Rect? _doorRect;
-  int? _groundTopTrim;
-  final List<Component> _groundComponents = [];
-  final List<Component> _spikeComponents = [];
-  final List<Component> _homingSpikes = [];
-  final double _playerStartX = 100.0;
+  SpriteComponent? background;
+  SpriteComponent? ground;
+  late double groundHeight;
+  // Offset visual para levantar el suelo y al jugador (en píxeles)
+  double groundVisualOffset = 8.0;
+  // Spikes spawned by this scene (so we can remove/respawn on rebuild)
+  final List<Spike> spawnedSpikes = [];
+  // Player starts glued to the left edge (small padding)
+  final double _playerStartX = 0.0;
+  // Door & wall (muro) transition state
+  PositionComponent? door;
+  DoorState _doorState = DoorState.idle;
+  bool _doorUsed = false; // ensure it only closes once
+  SpriteComponent? _muroTop;
+  SpriteComponent? _muroBottom;
+  double _muroSpeed = 420.0; // pixels per second the muro pieces move
+  // Ground tiled container for next level
+  PositionComponent? groundTiles;
+  // Second level / falling tiles state
+  bool _secondLevelActive = false;
+  bool _fallTriggered = false;
+  double _fallSpeed = 900.0; // px/s for falling tiles
+  final List<SpriteComponent> _fallingTiles = [];
+  // Void-fall detection and control-lock
+  bool _inVoidFalling = false;
+  double _voidFallTimer = 0.0;
+  final double _voidFallTimeout = 0.35; // seconds before registering death
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    // Load ground/map image. If it fails, don't throw: provide a simple
-    // fallback ground so the game can continue in local testing.
-    try {
-      await images.load('map.png');
-      _groundImage = images.fromCache('map.png');
-      if (_groundImage != null) {
-        _groundTopTrim = await _computeTopNonTransparent(_groundImage!);
-      } else {
-        _groundTopTrim = 0;
-        debugPrint('⚠️ map.png loaded but fromCache returned null');
-      }
-    } catch (e) {
-      // Don't rethrow: we want to allow the game to continue without map.png
-      debugPrint('⚠️ Could not load assets/images/map.png: $e');
-      _groundImage = null;
-      _groundTopTrim = 0;
-      // Provide a safe default ground height so later logic doesn't crash.
-      groundHeight = 120.0;
-    }
+    // Load a static background sprite that fills the screen and stays
+    // behind the game objects (below the ground). We create it with
+    // an initial size of zero if the game size isn't ready yet, and
+    // resize it in `_buildScene`.
+    final uiImage = await images.load('fondo.jpg');
+    background = SpriteComponent(
+      sprite: Sprite(uiImage),
+      size: Vector2.zero(),
+      position: Vector2.zero(),
+      anchor: Anchor.topLeft,
+    );
+    // Add the background early so it's rendered below later-added components
+    add(background!);
 
-    try {
-      await images.load('pinchos.png');
-      _spikeImage = images.fromCache('pinchos.png');
-      final bd = await _spikeImage!.toByteData(
-        format: ui.ImageByteFormat.rawRgba,
+    final groundImage = await images.load('piso_mapa.png');
+
+    // Detectar y recortar la parte transparente superior de la imagen del suelo
+    final int topOpaque = await _findTopOpaquePixel(groundImage, alphaThreshold: 8);
+    Sprite groundSprite;
+    if (topOpaque > 0 && topOpaque < groundImage.height) {
+      groundSprite = Sprite(
+        groundImage,
+        srcPosition: Vector2(0, topOpaque.toDouble()),
+        srcSize: Vector2(groundImage.width.toDouble(), (groundImage.height - topOpaque).toDouble()),
       );
-      _spikePixels = bd?.buffer.asUint8List();
-    } catch (_) {
-      _spikeImage = null;
+    } else {
+      groundSprite = Sprite(groundImage);
     }
 
-    try {
-      await images.load('puerta.png');
-      _doorImage = images.fromCache('puerta.png');
-      final bd2 = await _doorImage!.toByteData(
-        format: ui.ImageByteFormat.rawRgba,
-      );
-      _doorPixels = bd2?.buffer.asUint8List();
-    } catch (_) {
-      _doorImage = null;
-      _doorPixels = null;
-    }
-
-    // Instantiate SpikeManager and load local level data.
-    spikeManager = SpikeManager();
-    add(spikeManager);
-    await spikeManager.loadLevelData(1);
+    ground = SpriteComponent(
+      sprite: groundSprite,
+      size: Vector2.zero(),
+      position: Vector2.zero(),
+      anchor: Anchor.topLeft,
+    );
+    add(ground!);
 
     if (size != Vector2.zero()) {
-      _buildScene(size);
+      await _buildScene(size);
     }
     // Start in intro state, wait for a tap to begin
     gameState = GameState.intro;
   }
 
-  Future<int> _computeTopNonTransparent(ui.Image image) async {
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (gameState != GameState.playing) return;
+
+    // If player touches the door trigger, start closing the muro (only once)
+    if (_doorState == DoorState.idle && !_doorUsed && player != null && door != null) {
+      if (player!.toRect().overlaps(door!.toRect())) {
+        startDoorClose();
+      }
+    }
+
+    // Animate muro pieces depending on door state
+    if (_doorState == DoorState.closing) {
+      final double move = _muroSpeed * dt;
+      if (_muroTop != null) _muroTop!.position.y += move;
+      if (_muroBottom != null) _muroBottom!.position.y -= move;
+      // Check if they met or crossed center
+      if (_muroTop != null && _muroBottom != null) {
+        final double topBottomY = _muroTop!.position.y + _muroTop!.size.y;
+        final double bottomTopY = _muroBottom!.position.y;
+        if (topBottomY >= bottomTopY) {
+          // Snap them to meet exactly in the middle
+          final double centerY = size.y / 2.0;
+          final double h = _muroTop!.size.y;
+          _muroTop!.position.y = centerY - h;
+          _muroBottom!.position.y = centerY;
+          _doorState = DoorState.closed;
+          _onWallClosed();
+        }
+      }
+    } else if (_doorState == DoorState.opening) {
+      final double move = _muroSpeed * dt;
+      if (_muroTop != null) _muroTop!.position.y -= move;
+      if (_muroBottom != null) _muroBottom!.position.y += move;
+      // If they are fully off-screen, finish opening
+      if (_muroTop != null && _muroBottom != null) {
+        if (_muroTop!.position.y + _muroTop!.size.y <= 0 && _muroBottom!.position.y >= size.y) {
+          // Finished opening
+          _doorState = DoorState.opened;
+          // cleanup
+          _muroTop!.removeFromParent();
+          _muroBottom!.removeFromParent();
+          _muroTop = null;
+          _muroBottom = null;
+          // Remove or disable door so it doesn't trigger again
+          door?.removeFromParent();
+          door = null;
+        }
+      }
+    }
+
+    // Second level: trigger falling tiles when player reaches middle of screen
+    if (_secondLevelActive && !_fallTriggered && player != null) {
+      final double playerCenterX = player!.position.x + player!.size.x / 2.0;
+      if (playerCenterX >= size.x / 2.0) {
+        _triggerFallingTiles();
+      }
+    }
+
+    // Update falling tiles movement
+    if (_fallingTiles.isNotEmpty) {
+      final double move = _fallSpeed * dt;
+      for (final t in List<SpriteComponent>.from(_fallingTiles)) {
+        t.position.y += move;
+        if (t.position.y > size.y + 200) {
+          _fallingTiles.remove(t);
+          t.removeFromParent();
+        }
+      }
+
+      // If player exists, check whether there's still a surface under them.
+      if (player != null) {
+        final double leftX = player!.position.x;
+        final double rightX = player!.position.x + player!.size.x;
+        final surfaceY = surfaceYAt(leftX, rightX);
+
+        if (surfaceY == null) {
+          // start/continue void-fall timer and lock horizontal control
+          _voidFallTimer += dt;
+          if (!_inVoidFalling) {
+            _inVoidFalling = true;
+            // Immediately stop horizontal movement
+            player!.velocity.x = 0;
+            player!.moveLeft = false;
+            player!.moveRight = false;
+          }
+          // If the player has been falling for longer than timeout or already left screen, die
+          if (_voidFallTimer >= _voidFallTimeout || player!.position.y > size.y) {
+            _onSecondLevelDeath();
+          }
+        } else {
+          // There is surface under player: cancel void-fall state
+          _voidFallTimer = 0.0;
+          _inVoidFalling = false;
+        }
+      }
+    }
+
+    // Check collisions between player and static spikes
+    if (player != null) {
+      final playerRect = player!.toRect();
+      for (final s in spawnedSpikes) {
+        if (checkPixelPerfectCollision(playerRect, s)) {
+          onPlayerDied();
+          break;
+        }
+      }
+    }
+  }
+
+  /// Start the door closing animation: spawn two muro pieces (top & bottom)
+  Future<void> startDoorClose() async {
+    if (_doorState != DoorState.idle || _doorUsed) return;
+    _doorState = DoorState.closing;
+
+    // Stop player horizontal movement while the door closes
+    if (player != null) {
+      player!.velocity.x = 0;
+      player!.moveLeft = false;
+      player!.moveRight = false;
+    }
+
+    // Load muro image and create top/bottom sprites
+    try {
+      await images.load('muro.png');
+      final img = images.fromCache('muro.png');
+      final double halfH = size.y / 2.0;
+
+      final Sprite spr = Sprite(img);
+      // Top muro: starts above the screen
+      _muroTop = SpriteComponent(
+        sprite: spr,
+        size: Vector2(size.x, halfH),
+        position: Vector2(0, -halfH),
+        anchor: Anchor.topLeft,
+      );
+      // Bottom muro: starts below the screen
+      _muroBottom = SpriteComponent(
+        sprite: spr,
+        size: Vector2(size.x, halfH),
+        position: Vector2(0, size.y),
+        anchor: Anchor.topLeft,
+      );
+      // Add above other components so they visually cover the scene
+      add(_muroTop!);
+      add(_muroBottom!);
+      // mark used so we don't trigger closing again
+      _doorUsed = true;
+    } catch (e) {
+      // If image missing, still set closing=false to avoid stuck state
+      _doorState = DoorState.idle;
+    }
+  }
+
+  /// Called once the muro has fully closed (met in middle).
+  Future<void> _onWallClosed() async {
+    // Load next map assets: change ground sprite to `piso_chico_mapa` keeping height
+    try {
+      await images.load('piso_chico_mapa.png');
+      final img = images.fromCache('piso_chico_mapa.png');
+      if (ground != null) {
+        // Detect and crop transparent top so player's ground alignment remains correct
+        final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+        Sprite groundSprite;
+        if (topOpaque > 0 && topOpaque < img.height) {
+          groundSprite = Sprite(
+            img,
+            srcPosition: Vector2(0, topOpaque.toDouble()),
+            srcSize: Vector2(img.width.toDouble(), (img.height - topOpaque).toDouble()),
+          );
+        } else {
+          groundSprite = Sprite(img);
+        }
+        ground!.sprite = groundSprite;
+        ground!.size = Vector2(size.x, groundHeight);
+        ground!.position = Vector2(0, size.y - groundHeight - groundVisualOffset);
+      }
+    } catch (_) {
+      // ignore if asset missing
+    }
+
+    // Remove background and any spikes for the next level (leave only the ground)
+    if (background != null) {
+      background!.removeFromParent();
+      background = null;
+    }
+    for (final s in spawnedSpikes) {
+      s.removeFromParent();
+    }
+    spawnedSpikes.clear();
+
+    // Build tiled ground from five images repeated to cover 8x width
+    final double targetWidth = size.x * 8.0;
+    // Remove existing ground SpriteComponent and create a groundTiles container
+    final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
+    if (ground != null) {
+      ground!.removeFromParent();
+      ground = null;
+    }
+    if (groundTiles != null) {
+      groundTiles!.removeFromParent();
+      groundTiles = null;
+    }
+
+    groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
+
+    // names and order for tiles
+    final List<String> tileNames = [
+      'piso_1_mapa.png',
+      'piso_2_mapa.png',
+      'piso_3_mapa.png',
+      'piso_14_mapa.png',
+      'piso_5_mapa.png',
+    ];
+
+    double cursorX = 0.0;
+    int idx = 0;
+    while (cursorX < targetWidth) {
+      final name = tileNames[idx % tileNames.length];
+      ui.Image? img;
+      try {
+        await images.load(name);
+        img = images.fromCache(name);
+      } catch (e) {
+        img = null;
+      }
+      if (img == null) {
+        // skip this tile if missing and advance
+        idx++;
+        continue;
+      }
+
+      final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+      final int naturalH = (img.height - topOpaque).clamp(1, img.height);
+      final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
+        ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
+        : Sprite(img);
+
+      final double tileScale = groundHeight / naturalH;
+      final double tileW = img.width * tileScale;
+
+      final SpriteComponent tileComp = SpriteComponent(
+        sprite: tileSprite,
+        size: Vector2(tileW, groundHeight),
+        position: Vector2(cursorX, 0),
+        anchor: Anchor.topLeft,
+      );
+      groundTiles!.add(tileComp);
+      cursorX += tileW;
+      idx++;
+    }
+
+    // Add groundTiles to the game beneath the player: remove player, add groundTiles, re-add player
+    final Player? savedPlayer = player;
+    if (savedPlayer != null) remove(savedPlayer);
+    add(groundTiles!);
+
+    // Create new left-side door and teleport player next to it
+    final double doorWidth = 40.0;
+    final double doorHeight = groundHeight;
+    final PositionComponent newDoor = PositionComponent(
+      position: Vector2(0, groundPos.y - doorHeight),
+      size: Vector2(doorWidth, doorHeight),
+      anchor: Anchor.topLeft,
+    );
+    newDoor.add(RectangleComponent(
+      size: Vector2(doorWidth, doorHeight),
+      paint: Paint()..color = Colors.brown,
+      anchor: Anchor.topLeft,
+    ));
+    add(newDoor);
+    // remove old right-side door if present
+    final oldDoor = door;
+    door = newDoor;
+    if (oldDoor != null) oldDoor.removeFromParent();
+
+    if (savedPlayer != null) {
+      // place player to the right of the left door so it's "junto a la puerta"
+      savedPlayer.position = Vector2(doorWidth + 4.0, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
+      savedPlayer.velocity.x = 0;
+      savedPlayer.moveLeft = false;
+      savedPlayer.moveRight = false;
+      add(savedPlayer);
+    }
+
+    // Start opening animation (reverse of closing)
+    _doorState = DoorState.opening;
+    // mark that second level is now active
+    _secondLevelActive = true;
+  }
+
+  /// Find two tiles near the player and make them fall (so they create a hole).
+  void _triggerFallingTiles() {
+    if (groundTiles == null) return;
+    if (player == null) return;
+    final double playerCenterX = player!.position.x + player!.size.x / 2.0;
+    // find tile whose global x-range contains playerCenterX
+    final tiles = groundTiles!.children.whereType<SpriteComponent>().toList();
+    int found = -1;
+    for (int i = 0; i < tiles.length; i++) {
+      final t = tiles[i];
+      final double tileGlobalX = groundTiles!.position.x + t.position.x;
+      if (playerCenterX >= tileGlobalX && playerCenterX < tileGlobalX + t.size.x) {
+        found = i;
+        break;
+      }
+    }
+    if (found == -1) return;
+
+    // choose this tile and the next one (right-adjacent) to fall
+    final List<int> indices = [found, (found + 1) % tiles.length];
+    for (final idx in indices) {
+      final t = tiles[idx];
+      // compute global position
+      final globalPos = groundTiles!.position + t.position;
+      // remove from groundTiles and add to root so it is in front
+      groundTiles!.remove(t);
+      t.position = globalPos;
+      add(t);
+      _fallingTiles.add(t);
+    }
+
+    _fallTriggered = true;
+  }
+
+  void _onSecondLevelDeath() {
+    if (!_secondLevelActive) return;
+    // Use existing death flow
+    onPlayerDied();
+    // After short delay, restart the second level
+    Future.delayed(Duration(milliseconds: 1200), () {
+      _restartSecondLevel();
+    });
+  }
+
+  /// Rebuilds second level state (tiles, door, player position) when restarting
+  Future<void> _restartSecondLevel() async {
+    // cleanup existing scene parts
+    pauseEngine();
+    // remove muro pieces if any
+    _muroTop?.removeFromParent();
+    _muroBottom?.removeFromParent();
+    _muroTop = null;
+    _muroBottom = null;
+    _doorState = DoorState.idle;
+
+    // remove groundTiles and any tiles
+    if (groundTiles != null) {
+      groundTiles!.removeFromParent();
+      groundTiles = null;
+    }
+    for (final t in _fallingTiles) {
+      t.removeFromParent();
+    }
+    _fallingTiles.clear();
+    _fallTriggered = false;
+
+    // ensure no background and spikes
+    background?.removeFromParent();
+    background = null;
+    for (final s in spawnedSpikes) s.removeFromParent();
+    spawnedSpikes.clear();
+
+    // build second level again by reusing the onWallClosed tile-creation logic
+    // we call a trimmed copy here: create tiles and left door and teleport player
+    final double targetWidth = size.x * 8.0;
+    final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
+    groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
+
+    final List<String> tileNames = [
+      'piso_1_mapa.png',
+      'piso_2_mapa.png',
+      'piso_3_mapa.png',
+      'piso_14_mapa.png',
+      'piso_5_mapa.png',
+    ];
+
+    double cursorX = 0.0;
+    int idx = 0;
+    while (cursorX < targetWidth) {
+      final name = tileNames[idx % tileNames.length];
+      ui.Image? img;
+      try {
+        await images.load(name);
+        img = images.fromCache(name);
+      } catch (_) {
+        img = null;
+      }
+      if (img == null) { idx++; continue; }
+      final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+      final int naturalH = (img.height - topOpaque).clamp(1, img.height);
+      final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
+        ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
+        : Sprite(img);
+      final double tileScale = groundHeight / naturalH;
+      final double tileW = img.width * tileScale;
+      final SpriteComponent tileComp = SpriteComponent(
+        sprite: tileSprite,
+        size: Vector2(tileW, groundHeight),
+        position: Vector2(cursorX, 0),
+        anchor: Anchor.topLeft,
+      );
+      groundTiles!.add(tileComp);
+      cursorX += tileW;
+      idx++;
+    }
+
+    final Player? savedPlayer = player;
+    if (savedPlayer != null) remove(savedPlayer);
+    add(groundTiles!);
+
+    // create left door
+    final double doorWidth = 40.0;
+    final PositionComponent newDoor = PositionComponent(
+      position: Vector2(0, groundPos.y - groundHeight),
+      size: Vector2(doorWidth, groundHeight),
+      anchor: Anchor.topLeft,
+    );
+    newDoor.add(RectangleComponent(
+      size: Vector2(doorWidth, groundHeight),
+      paint: Paint()..color = Colors.brown,
+      anchor: Anchor.topLeft,
+    ));
+    add(newDoor);
+    door = newDoor;
+
+    if (savedPlayer != null) {
+      savedPlayer.position = Vector2(doorWidth + 4.0, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
+      savedPlayer.velocity.x = 0;
+      savedPlayer.moveLeft = false;
+      savedPlayer.moveRight = false;
+      add(savedPlayer);
+    }
+
+    // re-enable second level
+    _secondLevelActive = true;
+    _doorUsed = true;
+    resumeEngine();
+  }
+
+  /// Public API to restart second level (used by UI overlay)
+  Future<void> restartSecondLevel() async {
+    await _restartSecondLevel();
+  }
+
+  /// Whether the game is currently in second-level mode (used by overlays)
+  bool get isSecondLevelActive => _secondLevelActive;
+
+  Future<int> _findTopOpaquePixel(ui.Image image, {int alphaThreshold = 8}) async {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (byteData == null) return 0;
-    final data = byteData.buffer.asUint8List();
-    final width = image.width;
-    final height = image.height;
-
-    for (int y = 0; y < height; y++) {
-      final rowStart = y * width * 4;
-      for (int x = 0; x < width; x++) {
-        final alpha = data[rowStart + x * 4 + 3];
-        if (alpha > 10) {
-          return y;
-        }
+    final Uint8List pixels = byteData.buffer.asUint8List();
+    final int w = image.width;
+    final int h = image.height;
+    for (int y = 0; y < h; y++) {
+      final int rowStart = y * w * 4;
+      for (int x = 0; x < w; x++) {
+        final int alpha = pixels[rowStart + x * 4 + 3];
+        if (alpha > alphaThreshold) return y;
       }
     }
     return 0;
   }
 
-  @override
-  void onGameResize(Vector2 size) {
-    super.onGameResize(size);
-    _buildScene(size);
+  /// Returns [top, bottom] row indices (inclusive) of the opaque pixel bounds.
+  /// If no opaque pixels found returns [-1, -1].
+  Future<List<int>> _findOpaqueBounds(ui.Image image, {int alphaThreshold = 8}) async {
+    final bd = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (bd == null) return [-1, -1];
+    final Uint8List pixels = bd.buffer.asUint8List();
+    final int w = image.width;
+    final int h = image.height;
+    int top = -1;
+    int bottom = -1;
+    for (int y = 0; y < h; y++) {
+      final int rowStart = y * w * 4;
+      for (int x = 0; x < w; x++) {
+        if (pixels[rowStart + x * 4 + 3] > alphaThreshold) {
+          top = y;
+          break;
+        }
+      }
+      if (top != -1) break;
+    }
+    if (top == -1) return [-1, -1];
+    for (int y = h - 1; y >= 0; y--) {
+      final int rowStart = y * w * 4;
+      for (int x = 0; x < w; x++) {
+        if (pixels[rowStart + x * 4 + 3] > alphaThreshold) {
+          bottom = y;
+          break;
+        }
+      }
+      if (bottom != -1) break;
+    }
+    return [top, bottom];
   }
 
-  void _buildScene(Vector2 canvasSize) {
-    // Clear previous ground/homing spike components
-    for (final c in _groundComponents) {
-      remove(c);
+  /// Returns the Y coordinate (top) of the surface under the horizontal range [left..right].
+  /// If there is no surface (no ground or tiles) returns null.
+  double? surfaceYAt(double left, double right) {
+    // If a single ground SpriteComponent exists, use its top Y
+    if (ground != null) {
+      return ground!.position.y;
     }
-    _groundComponents.clear();
 
-    for (final c in _homingSpikes) {
-      remove(c);
-    }
-    _homingSpikes.clear();
-
-    double visibleTop;
-    // If we have a ground image, build detailed ground parts. Otherwise
-    // create a simple fallback ground rectangle so the scene can start.
-    if (_groundImage != null) {
-      final scene = buildGroundParts(
-        _groundImage!,
-        canvasSize,
-        _groundTopTrim ?? 0,
-      );
-      for (final c in scene.components) {
-        add(c);
-        _groundComponents.add(c);
+    // If tiled ground exists, check its children tiles
+    if (groundTiles != null) {
+      for (final c in groundTiles!.children.whereType<SpriteComponent>()) {
+        final double tileGlobalX = groundTiles!.position.x + c.position.x;
+        final double tileGlobalRight = tileGlobalX + c.size.x;
+        // overlap test between [left,right] and [tileGlobalX,tileGlobalRight]
+        if (!(right <= tileGlobalX || left >= tileGlobalRight)) {
+          // tile overlaps horizontally; return top Y of the tile (groundTiles' Y)
+          return groundTiles!.position.y + c.position.y;
+        }
       }
-      groundHeight = scene.groundHeight;
-      visibleTop = scene.visibleTop;
-    } else {
-      // Simple fallback ground: a rectangle at the bottom of the screen.
-      final fallbackHeight = groundHeight <= 0 ? 120.0 : groundHeight;
-      final groundRect = RectangleComponent(
-        position: Vector2(0, canvasSize.y - fallbackHeight),
-        size: Vector2(canvasSize.x, fallbackHeight),
-        paint: ui.Paint()..color = const ui.Color(0xFF7B4F1E),
-      )..anchor = Anchor.topLeft;
-      add(groundRect);
-      _groundComponents.add(groundRect);
-      groundHeight = fallbackHeight;
-      visibleTop = canvasSize.y - groundHeight;
     }
 
-    _doorRect = null;
-    if (_doorImage != null) {
-      final doorNatural = Vector2(
-        _doorImage!.width.toDouble(),
-        _doorImage!.height.toDouble(),
-      );
-      _doorNaturalSize = doorNatural;
-      final doorHeight = min(doorNatural.y, groundHeight * 1.5);
-      final doorScale = doorHeight / doorNatural.y;
-      final doorWidth = doorNatural.x * doorScale;
-      final doorComponent = SpriteComponent(
-        sprite: Sprite(_doorImage!),
-        position: Vector2(canvasSize.x, visibleTop),
-        size: Vector2(doorWidth, doorHeight),
-        anchor: Anchor.bottomRight,
-      )..priority = 1;
-      add(doorComponent);
-      final doorLeft = canvasSize.x - doorWidth;
-      _doorRect = Rect.fromLTWH(
-        doorLeft,
-        visibleTop - doorHeight,
-        doorWidth,
-        doorHeight,
-      );
+    // no surface under this horizontal range
+    return null;
+  }
+
+
+
+  @override
+  void onGameResize(Vector2 canvasSize) {
+    super.onGameResize(canvasSize);
+    _buildScene(canvasSize);
+  }
+
+    Future<void> _buildScene(Vector2 canvasSize) async {
+
+      // Establece una altura fija para el suelo
+
+      groundHeight = canvasSize.y * 0.25;
+
+  
+
+      if (background != null) {
+
+        background!.size = canvasSize;
+
+      }
+
+    if (ground != null) {
+      ground!.size = Vector2(canvasSize.x, groundHeight);
+      ground!.position = Vector2(0, canvasSize.y - groundHeight - groundVisualOffset);
     }
 
+    // Si el jugador ya existe, lo elimina para recrearlo
     if (player != null) {
       remove(player!);
     }
+
+    // Crea y posiciona al jugador
     player = Player(size: Vector2(50, 50));
-    player!.position = Vector2(_playerStartX, visibleTop - player!.size.y);
+    player!.position =
+      Vector2(_playerStartX, canvasSize.y - groundHeight - player!.size.y - groundVisualOffset);
     add(player!);
 
-    // SpikeManager will populate spikes from local assets if needed.
+    // Add a simple visible door trigger attached to the right edge (near ground)
+    final double doorWidth = 40.0;
+    final double doorHeight = groundHeight; // tall door occupying ground area
+    final double groundY = canvasSize.y - groundHeight - groundVisualOffset;
+    door = PositionComponent(
+      position: Vector2(canvasSize.x - doorWidth, groundY - doorHeight),
+      size: Vector2(doorWidth, doorHeight),
+      anchor: Anchor.topLeft,
+    );
+    // Add a visible rectangle so the door is noticeable during testing
+    door!.add(RectangleComponent(
+      size: Vector2(doorWidth, doorHeight),
+      paint: Paint()..color = Colors.brown,
+      anchor: Anchor.topLeft,
+    ));
+    add(door!);
+
+    // Spawn three spikes after player created
+    await _spawnThreeSpikes(canvasSize);
   }
 
-  void addPinchos(double visibleTop) {
-    // Remove previous spikes
-    for (final c in _spikeComponents) {
-      remove(c);
-    }
-    _spikeComponents.clear();
-    for (final c in _homingSpikes) {
-      remove(c);
-    }
-    _homingSpikes.clear();
 
-    if (_spikeImage != null && _spikePixels != null) {
-      final spikeSprite = Sprite(_spikeImage!);
-      final spikeNatural = Vector2(
-        _spikeImage!.width.toDouble(),
-        _spikeImage!.height.toDouble(),
-      );
-      // Load a scene config (for now a default based on canvas width).
-      // In the future this can load per-level configs from assets.
-      final config = SceneLoader.loadForLevel(1, size.x);
-      final result = createSpikesForScene(
-        spikeSprite: spikeSprite,
-        spikeNatural: spikeNatural,
-        spikePixels: _spikePixels!,
-        visibleTop: visibleTop,
-        groundHeight: groundHeight,
-        canvasWidth: size.x,
-        config: config,
-      );
 
-      for (final s in result.spikes) {
-        s.priority = 0;
-        add(s);
-        _spikeComponents.add(s);
-      }
-      for (final h in result.homingSpikes) {
-        // assign target now that player exists
-        h.target = player;
-        h.priority = 0;
-        add(h);
-        _homingSpikes.add(h);
-      }
-    }
-  }
 
-  @override
-  void onPlayerDied() {
-    if (gameState == GameState.playing) {
-      gameState = GameState.gameOver;
-      overlays.add('GameOver');
-      pauseEngine();
-      // Reporting to remote backend disabled for local testing.
-      debugPrint('Player died (local test) - remote report skipped');
-    }
-  }
 
   @override
   void onTapDown(TapDownEvent event) {
     if (gameState == GameState.intro) {
+      // keep tap-to-start in intro, but DO NOT treat taps as jump inputs
       startGame();
     }
-    // Do not trigger jumps from generic taps on the game area. Jump should
-    // only be triggered via the dedicated jump button to avoid accidental
-    // jumps when touching the screen.
-  }
-
-  @override
-  void onTapUp(TapUpEvent event) {
-    // No-op: jump release is handled by the jump button overlay only.
   }
 
   void startGame() {
@@ -278,12 +693,11 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   }
 
   void resetGame() {
-    // Eliminar overlays
-    overlays.remove('GameOver');
-    overlays.remove('win');
-
     // Reiniciar estado y reconstruir la escena
     gameState = GameState.playing;
+    // Remove game over overlay if present and restore controls
+    overlays.remove('GameOver');
+    overlays.add('Controls');
     _buildScene(size);
     if (player != null) {
       player!.invulnerable = 1.0; // Dar un segundo de invulnerabilidad
@@ -291,22 +705,14 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     resumeEngine();
   }
 
-  void onLevelComplete() {
-    if (gameState == GameState.playing) {
-      gameState = GameState.won;
-      pauseEngine();
-      overlays.add('win');
-    }
-  }
+
 
   void moveLeftStart() {
     if (gameState == GameState.playing) player?.moveLeft = true;
   }
-
   void moveRightStart() {
     if (gameState == GameState.playing) player?.moveRight = true;
   }
-
   void moveStop() {
     player?.moveLeft = false;
     player?.moveRight = false;
@@ -316,80 +722,240 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (gameState == GameState.playing) player?.jump();
   }
 
-  // Input helpers for low-latency pointer forwarding from Flutter widgets.
-  void pressJumpImmediate() {
-    if (gameState == GameState.playing) player?.pressJump();
-    // Start latency timer for this jump input
-    _lastPointerDownWatch = Stopwatch()..start();
-    _waitingForJumpLatency = true;
+  @override
+  void onPlayerDied() {
+    // Prevent multiple triggers
+    if (gameState == GameState.gameOver) return;
+    gameState = GameState.gameOver;
+    pauseEngine();
+    // Show overlay (defined in main.dart)
+    overlays.add('GameOver');
   }
 
-  void releaseJumpImmediate() {
-    if (gameState == GameState.playing) player?.releaseJump();
-  }
+  Future<void> _spawnThreeSpikes(Vector2 canvasSize) async {
+    // Remove previously spawned spikes
+    for (final s in spawnedSpikes) {
+      s.removeFromParent();
+    }
+    spawnedSpikes.clear();
 
-  // Latency measurement helpers
-  Stopwatch? _lastPointerDownWatch;
-  bool _waitingForJumpLatency = false;
+    if (player == null) return;
+
+    final double visibleTop = canvasSize.y - groundHeight - groundVisualOffset;
+
+    // images to use in order
+    final names = [
+      'pinchos_tres_mapa.png',
+      'pinchos_dos_mapa.png',
+      'pinchos_tres_mapa.png',
+    ];
+
+    // Load all images first
+    final List<ui.Image> imgs = [];
+    for (final n in names) {
+      try {
+        await images.load(n);
+        imgs.add(images.fromCache(n));
+      } catch (_) {
+        // skip missing images
+      }
+    }
+
+    if (imgs.isEmpty) return;
+
+    // Jump physics approximation (same as SpikeManager)
+    final double playerJumpSpeed = 420.0;
+    final double playerGravity = 900.0;
+    final double maxJump = (playerJumpSpeed * playerJumpSpeed) / (2 * playerGravity);
+
+    // start a bit to the right of player so spikes don't spawn on top
+    double cursorX = _playerStartX + (player!.size.x) + 120.0;
+    final double canvasWidth = canvasSize.x;
+    final double marginRight = canvasWidth * 0.08;
+
+    for (int i = 0; i < imgs.length; i++) {
+      final img = imgs[i];
+      final bd = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (bd == null) continue;
+      final Uint8List pixels = bd.buffer.asUint8List();
+      final int imgW = img.width;
+
+      // Find the opaque bounds (top..bottom) so we can crop out transparent padding
+      final bounds = await _findOpaqueBounds(img, alphaThreshold: 10);
+      if (bounds[0] == -1) continue; // nothing visible
+      final int top = bounds[0];
+      final int bottom = bounds[1];
+      final int visibleH = bottom - top + 1;
+
+      // Build cropped pixels RGBA and alpha mask for visible area
+      final Uint8List croppedPixels = Uint8List(imgW * visibleH * 4);
+      final Uint8List alphaMask = Uint8List(imgW * visibleH);
+      for (int y = 0; y < visibleH; y++) {
+        final int srcRow = (top + y) * imgW * 4;
+        final int dstRow = y * imgW * 4;
+        for (int x = 0; x < imgW; x++) {
+          final int sIdx = srcRow + x * 4;
+          final int dIdx = dstRow + x * 4;
+          croppedPixels[dIdx] = pixels[sIdx];
+          croppedPixels[dIdx + 1] = pixels[sIdx + 1];
+          croppedPixels[dIdx + 2] = pixels[sIdx + 2];
+          croppedPixels[dIdx + 3] = pixels[sIdx + 3];
+          alphaMask[y * imgW + x] = pixels[sIdx + 3] > 10 ? 1 : 0;
+        }
+      }
+
+      final Vector2 natural = Vector2(imgW.toDouble(), visibleH.toDouble());
+      final double spikeHeight = (min(groundHeight * 0.5, maxJump * 0.6)).clamp(20.0, groundHeight);
+      final double spikeScale = spikeHeight / natural.y;
+      final double spikeWidth = natural.x * spikeScale;
+
+      // ensure cursorX + spikeWidth doesn't go beyond canvas - marginRight
+      if (cursorX + spikeWidth + marginRight > canvasWidth) {
+        // shift cursor back so last spike fits
+        cursorX = (canvasWidth - marginRight) - spikeWidth - (imgs.length - i) * (spikeWidth * 1.6);
+        if (cursorX < _playerStartX + player!.size.x + 40) {
+          cursorX = _playerStartX + player!.size.x + 40;
+        }
+      }
+
+      // create a sprite that uses only the visible portion so its bottom lines up with the ground
+      final Sprite croppedSprite = Sprite(
+        img,
+        srcPosition: Vector2(0, top.toDouble()),
+        srcSize: Vector2(imgW.toDouble(), visibleH.toDouble()),
+      );
+      final spike = Spike(
+        sprite: croppedSprite,
+        // place bottom of spike at visibleTop + small overlap so it doesn't look floating
+        position: Vector2(cursorX + spikeWidth / 2, visibleTop + 1.0),
+        size: Vector2(spikeWidth, spikeHeight),
+        anchor: Anchor.bottomCenter,
+        pixels: croppedPixels,
+        alphaMask: alphaMask,
+        naturalSize: natural,
+      );
+      spawnedSpikes.add(spike);
+      add(spike);
+
+      // gap large enough for player to jump: at least 1.6 * player width
+      // give a bit more space between spikes so the player can jump comfortably
+      final double gapMultiplier = 2.2;
+      final double gap = max(player!.size.x * gapMultiplier, spikeWidth * gapMultiplier);
+      cursorX += spikeWidth + gap;
+    }
+  }
+}
+
+class Player extends PositionComponent with HasGameRef<RunnerGame> {
+  Vector2 velocity = Vector2.zero();
+  bool moveLeft = false;
+  bool moveRight = false;
+  double invulnerable = 0.0;
+
+  final double acceleration = 1200;
+  final double maxSpeed = 350;
+  final double friction = 600;
+  final double gravity = 900;
+  final double jumpSpeed = -380;
+
+  // Temporizador para el buffer de salto (0.1 segundos)
+  double _jumpBufferTimer = 0.0;
+
+  Player({Vector2? position, Vector2? size}) : super(position: position ?? Vector2.zero(), size: size ?? Vector2(50, 50));
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    anchor = Anchor.topLeft;
+    add(RectangleComponent(
+      size: size,
+      paint: Paint()..color = Colors.red,
+    ));
+  }
 
   @override
   void update(double dt) {
     super.update(dt);
 
-    // Centralizar detección de colisiones aquí: si el jugador toca un pincho => morir
-    if (player == null || !player!.isMounted) return;
+    // Actualizar el temporizador del buffer de salto
+    if (_jumpBufferTimer > 0) {
+      _jumpBufferTimer -= dt;
+    }
 
-    if (player!.invulnerable <= 0 && gameState == GameState.playing) {
-      final playerRect = Rect.fromLTWH(
-        player!.position.x,
-        player!.position.y,
-        player!.size.x,
-        player!.size.y,
-      );
-      for (final c in _spikeComponents) {
-        if (c is Spike) {
-          if (checkPixelPerfectCollision(playerRect, c)) {
-            onPlayerDied();
-            return;
-          }
-        }
+    if (gameRef.gameState != GameState.playing) {
+      // Si el juego no está en 'playing', no actualizar movimiento.
+      // Aplicar fricción para que el personaje se detenga.
+      if (velocity.x > 0) {
+        velocity.x = (velocity.x - friction * dt).clamp(0, maxSpeed);
+      } else if (velocity.x < 0) {
+        velocity.x = (velocity.x + friction * dt).clamp(-maxSpeed, 0);
       }
-
-      if (_doorRect != null) {
-        if (playerRect.overlaps(_doorRect!)) {
-          if (_doorPixels != null && _doorNaturalSize != null) {
-            if (checkPixelPerfectDoorCollision(
-              playerRect,
-              _doorRect!,
-              _doorNaturalSize!,
-              _doorPixels!,
-            )) {
-              onLevelComplete();
-            }
-          } else {
-            onLevelComplete();
-          }
+      return;
+    }
+    // If the game detected that the player is falling into void, disable horizontal input
+    if (gameRef._inVoidFalling) {
+      // apply friction to gradually stop horizontal movement
+      if (velocity.x > 0) {
+        velocity.x = (velocity.x - friction * dt).clamp(0, maxSpeed);
+      } else if (velocity.x < 0) {
+        velocity.x = (velocity.x + friction * dt).clamp(-maxSpeed, 0);
+      }
+    } else {
+      if (moveLeft) {
+        velocity.x = (velocity.x - acceleration * dt).clamp(-maxSpeed, maxSpeed);
+      } else if (moveRight) {
+        velocity.x = (velocity.x + acceleration * dt).clamp(-maxSpeed, maxSpeed);
+      } else {
+        if (velocity.x > 0) {
+          velocity.x = (velocity.x - friction * dt).clamp(0, maxSpeed);
+        } else if (velocity.x < 0) {
+          velocity.x = (velocity.x + friction * dt).clamp(-maxSpeed, 0);
         }
       }
     }
 
-    // Latency measurement: if we were waiting for a jump to be applied,
-    // consider it occurred when player's vertical velocity becomes negative.
-    if (_waitingForJumpLatency && player!.velocity.y < 0) {
-      final elapsed = _lastPointerDownWatch?.elapsedMilliseconds ?? -1;
-      debugPrint('Jump latency: ${elapsed}ms');
-      _lastPointerDownWatch?.stop();
-      _waitingForJumpLatency = false;
+    velocity.y += gravity * dt;
+    position += velocity * dt;
+
+    // Query the game for the surface under the player's horizontal span.
+    final double leftX = position.x;
+    final double rightX = position.x + size.x;
+    final surfaceY = gameRef.surfaceYAt(leftX, rightX);
+    if (surfaceY != null) {
+      // If player's bottom is at/ below the surface top, snap to it.
+      if (position.y + size.y >= surfaceY - 0.5) {
+        position.y = surfaceY - size.y;
+        velocity.y = 0;
+        // If jump buffer active, jump now
+        if (_jumpBufferTimer > 0) {
+          velocity.y = jumpSpeed;
+          _jumpBufferTimer = 0.0;
+        }
+      }
     }
-    // Timeout: if too long without jump, reset the waiting flag
-    if (_waitingForJumpLatency &&
-        _lastPointerDownWatch != null &&
-        _lastPointerDownWatch!.elapsedMilliseconds > 1000) {
-      debugPrint('Jump latency: timeout >1000ms');
-      _lastPointerDownWatch?.stop();
-      _waitingForJumpLatency = false;
+
+    if (position.x < 0) {
+      position.x = 0;
+      if(velocity.x < 0) velocity.x = 0;
+    }
+    if (position.x + size.x > gameRef.size.x) {
+      position.x = gameRef.size.x - size.x;
+      if(velocity.x > 0) velocity.x = 0;
+    }
+
+    if (invulnerable > 0) {
+      invulnerable -= dt;
+      if (invulnerable < 0) invulnerable = 0;
     }
   }
 
-  // Collision helpers have been moved to `collision_utils.dart`.
+  void jump() {
+    final groundY = gameRef.size.y - gameRef.groundHeight - gameRef.groundVisualOffset;
+    if ((position.y + size.y) >= groundY - 0.5) {
+      velocity.y = jumpSpeed;
+    } else {
+      // Si no está en el suelo, activar el buffer de salto
+      _jumpBufferTimer = 0.15;
+    }
+  }
 }

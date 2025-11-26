@@ -6,7 +6,7 @@ import 'providers/menu_carousel_provider.dart';
 import 'package:provider/provider.dart';
 import 'providers/settings_config_provider.dart';
 import 'widgets/login_widget.dart';
-import '../../game/app.dart';
+import '../../game/game_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

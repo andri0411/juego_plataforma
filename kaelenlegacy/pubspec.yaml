@@ -30,6 +30,7 @@ flutter:
     - assets/videos/
     - assets/images/
     - assets/fonts/
+    - assets/Nivel1/
   fonts:
     - family: Cinzel
       fonts:
