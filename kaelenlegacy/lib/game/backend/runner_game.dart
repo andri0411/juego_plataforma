@@ -42,7 +42,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   // Void-fall detection and control-lock
   bool _inVoidFalling = false;
   double _voidFallTimer = 0.0;
-  final double _voidFallTimeout = 0.35; // seconds before registering death
+  final double _voidFallTimeout = 1.2; // seconds before registering death (allow visible fall)
 
   @override
   Future<void> onLoad() async {
@@ -421,16 +421,18 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (!_secondLevelActive) return;
     // Use existing death flow
     onPlayerDied();
-    // After short delay, restart the second level
-    Future.delayed(Duration(milliseconds: 1200), () {
-      _restartSecondLevel();
-    });
+    // Do NOT auto-restart the level here. Wait for the player to press
+    // the "Reintentar Nivel 2" button in the GameOver overlay which will
+    // call `restartSecondLevel()` and properly rebuild the second level.
   }
 
   /// Rebuilds second level state (tiles, door, player position) when restarting
   Future<void> _restartSecondLevel() async {
     // cleanup existing scene parts
     pauseEngine();
+    // Remove game over overlay if still present
+    overlays.remove('GameOver');
+    
     // remove muro pieces if any
     _muroTop?.removeFromParent();
     _muroBottom?.removeFromParent();
@@ -526,9 +528,13 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       add(savedPlayer);
     }
 
-    // re-enable second level
+    // re-enable second level and reset void-fall state so controls work
     _secondLevelActive = true;
     _doorUsed = true;
+    _inVoidFalling = false;
+    _voidFallTimer = 0.0;
+    // Ensure game is in playing state and no spikes are spawned
+    gameState = GameState.playing;
     resumeEngine();
   }
 
@@ -733,6 +739,9 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   }
 
   Future<void> _spawnThreeSpikes(Vector2 canvasSize) async {
+    // Do NOT spawn spikes if we are in second level
+    if (_secondLevelActive) return;
+
     // Remove previously spawned spikes
     for (final s in spawnedSpikes) {
       s.removeFromParent();
