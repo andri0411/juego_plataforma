@@ -43,7 +43,6 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   bool _inVoidFalling = false;
   double _voidFallTimer = 0.0;
   final double _voidFallTimeout = 0.35; // seconds before registering death
-  bool _deathHandled = false;
 
   @override
   Future<void> onLoad() async {
@@ -162,32 +161,32 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
           t.removeFromParent();
         }
       }
+    }
 
-      // If player exists, check whether there's still a surface under them.
-      if (player != null) {
-        final double leftX = player!.position.x;
-        final double rightX = player!.position.x + player!.size.x;
-        final surfaceY = surfaceYAt(leftX, rightX);
+    // Independent void-fall detection for second level: always check while second level active
+    if (_secondLevelActive && player != null) {
+      final double leftX = player!.position.x;
+      final double rightX = player!.position.x + player!.size.x;
+      final surfaceY = surfaceYAt(leftX, rightX);
 
-        if (surfaceY == null) {
-          // start/continue void-fall timer and lock horizontal control
-          _voidFallTimer += dt;
-          if (!_inVoidFalling) {
-            _inVoidFalling = true;
-            // Immediately stop horizontal movement
-            player!.velocity.x = 0;
-            player!.moveLeft = false;
-            player!.moveRight = false;
-          }
-          // If the player has been falling for longer than timeout or already left screen, die
-          if (_voidFallTimer >= _voidFallTimeout || player!.position.y > size.y) {
-            _onSecondLevelDeath();
-          }
-        } else {
-          // There is surface under player: cancel void-fall state
-          _voidFallTimer = 0.0;
-          _inVoidFalling = false;
+      if (surfaceY == null) {
+        // start/continue void-fall timer and lock horizontal control
+        _voidFallTimer += dt;
+        if (!_inVoidFalling) {
+          _inVoidFalling = true;
+          // Immediately stop horizontal movement
+          player!.velocity.x = 0;
+          player!.moveLeft = false;
+          player!.moveRight = false;
         }
+        // If the player has been falling for longer than timeout or already left screen, die
+        if (_voidFallTimer >= _voidFallTimeout || player!.position.y > size.y) {
+          _onSecondLevelDeath();
+        }
+      } else {
+        // There is surface under player: cancel void-fall state
+        _voidFallTimer = 0.0;
+        _inVoidFalling = false;
       }
     }
 
@@ -420,11 +419,12 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
   void _onSecondLevelDeath() {
     if (!_secondLevelActive) return;
-    if (_deathHandled) return;
-    _deathHandled = true;
-    // Use existing death flow (pauses engine and shows GameOver overlay)
+    // Use existing death flow
     onPlayerDied();
-    // Do NOT auto-restart: wait for player to press the overlay button to restart level 2.
+    // After short delay, restart the second level
+    Future.delayed(Duration(milliseconds: 1200), () {
+      _restartSecondLevel();
+    });
   }
 
   /// Rebuilds second level state (tiles, door, player position) when restarting
@@ -529,7 +529,6 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     // re-enable second level
     _secondLevelActive = true;
     _doorUsed = true;
-    _deathHandled = false;
     resumeEngine();
   }
 
