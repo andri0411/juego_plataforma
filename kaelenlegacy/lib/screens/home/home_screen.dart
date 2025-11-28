@@ -34,7 +34,9 @@ class _HomeScreenState extends State<HomeScreen>
   double _fadeToBlack = 0.0;
   bool _showDoor = false;
   bool _showCoinStore = false;
+
   int _coins = 1500;
+  final List<String> _inventory = [];
 
   // Video asset constants
   static const String _videoFlame = 'assets/videos/flame.mp4';
@@ -734,6 +736,7 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 500) {
                                             setState(() {
                                               _coins -= 500;
+                                              _inventory.add('Poción de Vida');
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -769,6 +772,7 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 300) {
                                             setState(() {
                                               _coins -= 300;
+                                              _inventory.add('Poción de Maná');
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -804,6 +808,9 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 1500) {
                                             setState(() {
                                               _coins -= 1500;
+                                              _inventory.add(
+                                                'Espada de Hierro',
+                                              );
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -839,6 +846,9 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 800) {
                                             setState(() {
                                               _coins -= 800;
+                                              _inventory.add(
+                                                'Escudo de Madera',
+                                              );
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -874,6 +884,7 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 1200) {
                                             setState(() {
                                               _coins -= 1200;
+                                              _inventory.add('Botas Veloces');
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -909,6 +920,9 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 2500) {
                                             setState(() {
                                               _coins -= 2500;
+                                              _inventory.add(
+                                                'Anillo de Fuerza',
+                                              );
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -944,6 +958,9 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 3000) {
                                             setState(() {
                                               _coins -= 3000;
+                                              _inventory.add(
+                                                'Amuleto Protección',
+                                              );
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -979,6 +996,7 @@ class _HomeScreenState extends State<HomeScreen>
                                           if (_coins >= 5000) {
                                             setState(() {
                                               _coins -= 5000;
+                                              _inventory.add('Mapa del Tesoro');
                                             });
                                             ScaffoldMessenger.of(
                                               context,
@@ -1179,6 +1197,37 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
+
+          // Backpack Icon (Next to Coin Counter)
+          if (_isInitialized && _currentVideoAsset == _videoStore)
+            Positioned(
+              top: 40,
+              right:
+                  300, // Positioned to the left of the coin counter (which is at right: 180, width approx 100)
+              child: GestureDetector(
+                onTap: _showInventory,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.amber, width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black45,
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.backpack,
+                    color: Colors.amber,
+                    size: 28,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1240,6 +1289,122 @@ class _HomeScreenState extends State<HomeScreen>
                 ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showInventory() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 400,
+          height: 500,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.amber, width: 2),
+            boxShadow: const [
+              BoxShadow(color: Colors.black54, blurRadius: 20, spreadRadius: 5),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Colors.amber, width: 1),
+                  ),
+                ),
+                child: const Text(
+                  'Mochila',
+                  style: TextStyle(
+                    fontFamily: 'Cinzel',
+                    fontSize: 32,
+                    color: Colors.amber,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _inventory.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Tu mochila está vacía',
+                          style: TextStyle(
+                            fontFamily: 'Spectral',
+                            fontSize: 20,
+                            color: Colors.white54,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _inventory.length,
+                        itemBuilder: (context, index) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.white24,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_outline,
+                                  color: Colors.greenAccent,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    _inventory[index],
+                                    style: const TextStyle(
+                                      fontFamily: 'Spectral',
+                                      fontSize: 18,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Cerrar',
+                    style: TextStyle(
+                      fontFamily: 'Spectral',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
