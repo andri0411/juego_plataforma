@@ -6,6 +6,7 @@ import 'providers/menu_carousel_provider.dart';
 import 'package:provider/provider.dart';
 import 'providers/settings_config_provider.dart';
 import 'widgets/login_widget.dart';
+import 'widgets/payment_widget.dart';
 import '../../game/game_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -605,6 +606,18 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$50 MXN',
                                         Colors.amber,
                                         isRealMoney: true,
+                                        onTap: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const PaymentWidget(
+                                                    itemName: 'Pila de Monedas',
+                                                    itemPrice: '\$50 MXN',
+                                                    itemAmount: '500 Monedas',
+                                                  ),
+                                            ),
+                                          );
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -613,6 +626,19 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$120 MXN',
                                         Colors.amberAccent,
                                         isRealMoney: true,
+                                        onTap: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const PaymentWidget(
+                                                    itemName:
+                                                        'Bolsa de Monedas',
+                                                    itemPrice: '\$120 MXN',
+                                                    itemAmount: '1500 Monedas',
+                                                  ),
+                                            ),
+                                          );
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -621,6 +647,19 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$250 MXN',
                                         Colors.orange,
                                         isRealMoney: true,
+                                        onTap: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const PaymentWidget(
+                                                    itemName:
+                                                        'Cofre de Monedas',
+                                                    itemPrice: '\$250 MXN',
+                                                    itemAmount: '3500 Monedas',
+                                                  ),
+                                            ),
+                                          );
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -629,6 +668,18 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$350 MXN',
                                         Colors.cyanAccent,
                                         isRealMoney: true,
+                                        onTap: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const PaymentWidget(
+                                                    itemName: 'Tesoro Real',
+                                                    itemPrice: '\$350 MXN',
+                                                    itemAmount: '6000 Monedas',
+                                                  ),
+                                            ),
+                                          );
+                                        },
                                       ),
                                     ]
                                   : [
@@ -820,52 +871,56 @@ class _HomeScreenState extends State<HomeScreen>
     String price,
     Color iconColor, {
     bool isRealMoney = false,
+    VoidCallback? onTap,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      child: Card(
-        color: Colors.white.withValues(alpha: 0.1),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Icon(icon, color: iconColor, size: 28),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: double.infinity,
+        child: Card(
+          color: Colors.white.withValues(alpha: 0.1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Icon(icon, color: iconColor, size: 28),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontFamily: 'Spectral',
+                      fontSize: 18,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w300,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  price,
+                  style: TextStyle(
                     fontFamily: 'Spectral',
                     fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w300,
+                    color: isRealMoney ? Colors.greenAccent : Colors.amber,
+                    fontWeight: FontWeight.bold,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                price,
-                style: TextStyle(
-                  fontFamily: 'Spectral',
-                  fontSize: 18,
-                  color: isRealMoney ? Colors.greenAccent : Colors.amber,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (!isRealMoney) ...[
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.monetization_on,
-                  color: Colors.amber,
-                  size: 16,
-                ),
+                if (!isRealMoney) ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.monetization_on,
+                    color: Colors.amber,
+                    size: 16,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
