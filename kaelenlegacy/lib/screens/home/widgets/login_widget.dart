@@ -157,6 +157,47 @@ class _LoginWidgetState extends State<LoginWidget> {
 
                     const SizedBox(height: 24),
 
+                    if (_isLogin) ...[
+                      const Text(
+                        'O inicia con',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontFamily: 'Spectral',
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      GestureDetector(
+                        onTap: () {
+                          // TODO: Implement Google Sign In
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Padding(
+                            padding: const EdgeInsets.all(10.0),
+                            child: Image.asset(
+                              'assets/images/google.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
                     TextButton(
                       onPressed: () {
                         setState(() {
