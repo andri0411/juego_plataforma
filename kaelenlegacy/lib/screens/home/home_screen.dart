@@ -414,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen>
                         vertical: 48,
                       ),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
