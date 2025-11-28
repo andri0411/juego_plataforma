@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen>
   double _fadeToBlack = 0.0;
   bool _showDoor = false;
   bool _showCoinStore = false;
+  int _coins = 1500;
 
   // Video asset constants
   static const String _videoFlame = 'assets/videos/flame.mp4';
@@ -559,23 +560,31 @@ class _HomeScreenState extends State<HomeScreen>
                               else
                                 const SizedBox(width: 48), // Spacer to balance
                               Expanded(
-                                child: Text(
-                                  _showCoinStore ? 'Monedas' : 'Tienda',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontFamily: 'Spectral',
-                                    fontSize: 32,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w300,
-                                    letterSpacing: 1,
-                                    shadows: [
-                                      Shadow(
-                                        offset: Offset(1, 1),
-                                        blurRadius: 6,
-                                        color: Colors.black38,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      _showCoinStore ? 'Monedas' : 'Tienda',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontFamily: 'Spectral',
+                                        fontSize: 32,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w300,
+                                        letterSpacing: 1,
+                                        shadows: [
+                                          Shadow(
+                                            offset: Offset(1, 1),
+                                            blurRadius: 6,
+                                            color: Colors.black38,
+                                          ),
+                                        ],
                                       ),
+                                    ),
+                                    if (!_showCoinStore) ...[
+                                      // Removed coin counter from here
                                     ],
-                                  ),
+                                  ],
                                 ),
                               ),
                               if (!_showCoinStore)
@@ -606,17 +615,26 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$50 MXN',
                                         Colors.amber,
                                         isRealMoney: true,
-                                        onTap: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const PaymentWidget(
-                                                    itemName: 'Pila de Monedas',
-                                                    itemPrice: '\$50 MXN',
-                                                    itemAmount: '500 Monedas',
-                                                  ),
-                                            ),
-                                          );
+                                        onTap: () async {
+                                          final coinsPurchased =
+                                              await Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      const PaymentWidget(
+                                                        itemName:
+                                                            'Pila de Monedas',
+                                                        itemPrice: '\$50 MXN',
+                                                        itemAmount:
+                                                            '500 Monedas',
+                                                      ),
+                                                ),
+                                              );
+                                          if (coinsPurchased != null &&
+                                              coinsPurchased is int) {
+                                            setState(() {
+                                              _coins += coinsPurchased;
+                                            });
+                                          }
                                         },
                                       ),
                                       const SizedBox(height: 16),
@@ -626,18 +644,26 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$120 MXN',
                                         Colors.amberAccent,
                                         isRealMoney: true,
-                                        onTap: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const PaymentWidget(
-                                                    itemName:
-                                                        'Bolsa de Monedas',
-                                                    itemPrice: '\$120 MXN',
-                                                    itemAmount: '1500 Monedas',
-                                                  ),
-                                            ),
-                                          );
+                                        onTap: () async {
+                                          final coinsPurchased =
+                                              await Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      const PaymentWidget(
+                                                        itemName:
+                                                            'Bolsa de Monedas',
+                                                        itemPrice: '\$120 MXN',
+                                                        itemAmount:
+                                                            '1500 Monedas',
+                                                      ),
+                                                ),
+                                              );
+                                          if (coinsPurchased != null &&
+                                              coinsPurchased is int) {
+                                            setState(() {
+                                              _coins += coinsPurchased;
+                                            });
+                                          }
                                         },
                                       ),
                                       const SizedBox(height: 16),
@@ -647,18 +673,26 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$250 MXN',
                                         Colors.orange,
                                         isRealMoney: true,
-                                        onTap: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const PaymentWidget(
-                                                    itemName:
-                                                        'Cofre de Monedas',
-                                                    itemPrice: '\$250 MXN',
-                                                    itemAmount: '3500 Monedas',
-                                                  ),
-                                            ),
-                                          );
+                                        onTap: () async {
+                                          final coinsPurchased =
+                                              await Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      const PaymentWidget(
+                                                        itemName:
+                                                            'Cofre de Monedas',
+                                                        itemPrice: '\$250 MXN',
+                                                        itemAmount:
+                                                            '3500 Monedas',
+                                                      ),
+                                                ),
+                                              );
+                                          if (coinsPurchased != null &&
+                                              coinsPurchased is int) {
+                                            setState(() {
+                                              _coins += coinsPurchased;
+                                            });
+                                          }
                                         },
                                       ),
                                       const SizedBox(height: 16),
@@ -668,17 +702,25 @@ class _HomeScreenState extends State<HomeScreen>
                                         '\$350 MXN',
                                         Colors.cyanAccent,
                                         isRealMoney: true,
-                                        onTap: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const PaymentWidget(
-                                                    itemName: 'Tesoro Real',
-                                                    itemPrice: '\$350 MXN',
-                                                    itemAmount: '6000 Monedas',
-                                                  ),
-                                            ),
-                                          );
+                                        onTap: () async {
+                                          final coinsPurchased =
+                                              await Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      const PaymentWidget(
+                                                        itemName: 'Tesoro Real',
+                                                        itemPrice: '\$350 MXN',
+                                                        itemAmount:
+                                                            '6000 Monedas',
+                                                      ),
+                                                ),
+                                              );
+                                          if (coinsPurchased != null &&
+                                              coinsPurchased is int) {
+                                            setState(() {
+                                              _coins += coinsPurchased;
+                                            });
+                                          }
                                         },
                                       ),
                                     ]
@@ -688,6 +730,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Poción de Vida',
                                         '500',
                                         Colors.redAccent,
+                                        onTap: () {
+                                          if (_coins >= 500) {
+                                            setState(() {
+                                              _coins -= 500;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Poción de Vida comprada!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -695,6 +765,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Poción de Maná',
                                         '300',
                                         Colors.blueAccent,
+                                        onTap: () {
+                                          if (_coins >= 300) {
+                                            setState(() {
+                                              _coins -= 300;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Poción de Maná comprada!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -702,6 +800,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Espada de Hierro',
                                         '1500',
                                         Colors.blueGrey,
+                                        onTap: () {
+                                          if (_coins >= 1500) {
+                                            setState(() {
+                                              _coins -= 1500;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Espada de Hierro comprada!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -709,6 +835,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Escudo de Madera',
                                         '800',
                                         Colors.brown,
+                                        onTap: () {
+                                          if (_coins >= 800) {
+                                            setState(() {
+                                              _coins -= 800;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Escudo de Madera comprado!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -716,6 +870,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Botas Veloces',
                                         '1200',
                                         Colors.green,
+                                        onTap: () {
+                                          if (_coins >= 1200) {
+                                            setState(() {
+                                              _coins -= 1200;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Botas Veloces compradas!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -723,6 +905,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Anillo de Fuerza',
                                         '2500',
                                         Colors.amber,
+                                        onTap: () {
+                                          if (_coins >= 2500) {
+                                            setState(() {
+                                              _coins -= 2500;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Anillo de Fuerza comprado!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -730,6 +940,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Amuleto Protección',
                                         '3000',
                                         Colors.purpleAccent,
+                                        onTap: () {
+                                          if (_coins >= 3000) {
+                                            setState(() {
+                                              _coins -= 3000;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Amuleto Protección comprado!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       _buildStoreItem(
@@ -737,6 +975,34 @@ class _HomeScreenState extends State<HomeScreen>
                                         'Mapa del Tesoro',
                                         '5000',
                                         Colors.yellowAccent,
+                                        onTap: () {
+                                          if (_coins >= 5000) {
+                                            setState(() {
+                                              _coins -= 5000;
+                                            });
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '¡Mapa del Tesoro comprado!',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'No tienes suficientes monedas',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                     ],
                             ),
@@ -857,6 +1123,59 @@ class _HomeScreenState extends State<HomeScreen>
                       await _changeVideo(_videoIntro);
                     }
                   },
+                ),
+              ),
+            ),
+
+          // Coin Counter (Top Right, avoiding Carousel)
+          if (_isInitialized && _currentVideoAsset == _videoStore)
+            Positioned(
+              top: 40,
+              right:
+                  180, // Positioned to the left of the carousel (which is at right: 32, width: 120)
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.amber, width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.monetization_on,
+                      color: Colors.amber,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '$_coins',
+                      style: const TextStyle(
+                        fontFamily: 'Spectral',
+                        fontSize: 22,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(1, 1),
+                            blurRadius: 2,
+                            color: Colors.black,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

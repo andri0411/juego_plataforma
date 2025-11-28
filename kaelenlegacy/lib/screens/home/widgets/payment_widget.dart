@@ -88,7 +88,11 @@ class _PaymentWidgetState extends State<PaymentWidget>
       await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
-      Navigator.of(context).pop();
+      if (!mounted) return;
+
+      // Extract numeric amount from string (e.g., "500 Monedas" -> 500)
+      final amount = int.tryParse(widget.itemAmount.split(' ')[0]) ?? 0;
+      Navigator.of(context).pop(amount);
     }
   }
 
