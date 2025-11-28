@@ -36,6 +36,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   PositionComponent? groundTiles;
   // Second level / falling tiles state
   bool _secondLevelActive = false;
+  // Third level state
+  bool _thirdLevelActive = false;
   bool _fallTriggered = false;
   double _fallSpeed = 900.0; // px/s for falling tiles
   final List<SpriteComponent> _fallingTiles = [];
@@ -96,8 +98,9 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     super.update(dt);
     if (gameState != GameState.playing) return;
 
-    // If player touches the door trigger, start closing the muro (only once)
-    if (_doorState == DoorState.idle && !_doorUsed && player != null && door != null) {
+    // If player touches the door trigger, start closing the muro (only once).
+    // Allow triggering when the muro is idle or already opened (ready to close again).
+    if ((_doorState == DoorState.idle || _doorState == DoorState.opened) && !_doorUsed && player != null && door != null) {
       if (player!.toRect().overlaps(door!.toRect())) {
         startDoorClose();
       }
@@ -131,14 +134,14 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         if (_muroTop!.position.y + _muroTop!.size.y <= 0 && _muroBottom!.position.y >= size.y) {
           // Finished opening
           _doorState = DoorState.opened;
-          // cleanup
+          // cleanup muro pieces
           _muroTop!.removeFromParent();
           _muroBottom!.removeFromParent();
           _muroTop = null;
           _muroBottom = null;
-          // Remove or disable door so it doesn't trigger again
-          door?.removeFromParent();
-          door = null;
+          // Keep the `door` component (it may be the newly-created exit door).
+          // Allow the door to be used again for subsequent transitions
+          _doorUsed = false;
         }
       }
     }
@@ -174,8 +177,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         _voidFallTimer += dt;
         if (!_inVoidFalling) {
           _inVoidFalling = true;
-          // Immediately stop horizontal movement
-          player!.velocity.x = 0;
+          // Do NOT zero horizontal velocity here so the player preserves
+          // horizontal momentum when stepping off a ledge. Disable player
+          // requested movement inputs so new input isn't applied while
+          // in the void-fall state.
           player!.moveLeft = false;
           player!.moveRight = false;
         }
@@ -204,7 +209,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
   /// Start the door closing animation: spawn two muro pieces (top & bottom)
   Future<void> startDoorClose() async {
-    if (_doorState != DoorState.idle || _doorUsed) return;
+    // allow starting the close animation when muro is idle or already opened
+    if (!(_doorState == DoorState.idle || _doorState == DoorState.opened) || _doorUsed) return;
     _doorState = DoorState.closing;
 
     // Stop player horizontal movement while the door closes
@@ -248,139 +254,228 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
   /// Called once the muro has fully closed (met in middle).
   Future<void> _onWallClosed() async {
-    // Load next map assets: change ground sprite to `piso_chico_mapa` keeping height
-    try {
-      await images.load('piso_chico_mapa.png');
-      final img = images.fromCache('piso_chico_mapa.png');
+    // If we were NOT in second-level mode, build the second level here.
+    if (!_secondLevelActive) {
+      // Build tiled ground from five images repeated to cover 8x width
+      // Remove background and any spikes for the next level (leave only the ground)
+      if (background != null) {
+        background!.removeFromParent();
+        background = null;
+      }
+      for (final s in spawnedSpikes) {
+        s.removeFromParent();
+      }
+      spawnedSpikes.clear();
+
+      final double targetWidth = size.x * 8.0;
+      final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
       if (ground != null) {
-        // Detect and crop transparent top so player's ground alignment remains correct
-        final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
-        Sprite groundSprite;
-        if (topOpaque > 0 && topOpaque < img.height) {
-          groundSprite = Sprite(
-            img,
-            srcPosition: Vector2(0, topOpaque.toDouble()),
-            srcSize: Vector2(img.width.toDouble(), (img.height - topOpaque).toDouble()),
-          );
-        } else {
-          groundSprite = Sprite(img);
+        ground!.removeFromParent();
+        ground = null;
+      }
+      if (groundTiles != null) {
+        groundTiles!.removeFromParent();
+        groundTiles = null;
+      }
+
+      groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
+
+      // names and order for tiles
+      final List<String> tileNames = [
+        'piso_1_mapa.png',
+        'piso_2_mapa.png',
+        'piso_3_mapa.png',
+        'piso_14_mapa.png',
+        'piso_5_mapa.png',
+      ];
+
+      double cursorX = 0.0;
+      int idx = 0;
+      while (cursorX < targetWidth) {
+        final name = tileNames[idx % tileNames.length];
+        ui.Image? img;
+        try {
+          await images.load(name);
+          img = images.fromCache(name);
+        } catch (e) {
+          img = null;
         }
-        ground!.sprite = groundSprite;
-        ground!.size = Vector2(size.x, groundHeight);
-        ground!.position = Vector2(0, size.y - groundHeight - groundVisualOffset);
-      }
-    } catch (_) {
-      // ignore if asset missing
-    }
+        if (img == null) { idx++; continue; }
 
-    // Remove background and any spikes for the next level (leave only the ground)
-    if (background != null) {
-      background!.removeFromParent();
-      background = null;
-    }
-    for (final s in spawnedSpikes) {
-      s.removeFromParent();
-    }
-    spawnedSpikes.clear();
+        final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+        final int naturalH = (img.height - topOpaque).clamp(1, img.height);
+        final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
+          ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
+          : Sprite(img);
 
-    // Build tiled ground from five images repeated to cover 8x width
-    final double targetWidth = size.x * 8.0;
-    // Remove existing ground SpriteComponent and create a groundTiles container
-    final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
-    if (ground != null) {
-      ground!.removeFromParent();
-      ground = null;
-    }
-    if (groundTiles != null) {
-      groundTiles!.removeFromParent();
-      groundTiles = null;
-    }
+        final double tileScale = groundHeight / naturalH;
+        final double tileW = img.width * tileScale;
 
-    groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
-
-    // names and order for tiles
-    final List<String> tileNames = [
-      'piso_1_mapa.png',
-      'piso_2_mapa.png',
-      'piso_3_mapa.png',
-      'piso_14_mapa.png',
-      'piso_5_mapa.png',
-    ];
-
-    double cursorX = 0.0;
-    int idx = 0;
-    while (cursorX < targetWidth) {
-      final name = tileNames[idx % tileNames.length];
-      ui.Image? img;
-      try {
-        await images.load(name);
-        img = images.fromCache(name);
-      } catch (e) {
-        img = null;
-      }
-      if (img == null) {
-        // skip this tile if missing and advance
+        final SpriteComponent tileComp = SpriteComponent(
+          sprite: tileSprite,
+          size: Vector2(tileW, groundHeight),
+          position: Vector2(cursorX, 0),
+          anchor: Anchor.topLeft,
+        );
+        groundTiles!.add(tileComp);
+        cursorX += tileW;
         idx++;
-        continue;
       }
 
-      final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
-      final int naturalH = (img.height - topOpaque).clamp(1, img.height);
-      final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
-        ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
-        : Sprite(img);
+      // Add groundTiles to the game beneath the player: remove player, add groundTiles, re-add player
+      final Player? savedPlayer = player;
+      if (savedPlayer != null) remove(savedPlayer);
+      add(groundTiles!);
 
-      final double tileScale = groundHeight / naturalH;
-      final double tileW = img.width * tileScale;
-
-      final SpriteComponent tileComp = SpriteComponent(
-        sprite: tileSprite,
-        size: Vector2(tileW, groundHeight),
-        position: Vector2(cursorX, 0),
+      // Create a visible left-side door (entrance)
+      final double doorWidth = 40.0;
+      final double doorHeight = groundHeight;
+      final PositionComponent leftDoor = PositionComponent(
+        position: Vector2(0, groundPos.y - doorHeight),
+        size: Vector2(doorWidth, doorHeight),
         anchor: Anchor.topLeft,
       );
-      groundTiles!.add(tileComp);
-      cursorX += tileW;
-      idx++;
+      leftDoor.add(RectangleComponent(
+        size: Vector2(doorWidth, doorHeight),
+        paint: Paint()..color = Colors.brown,
+        anchor: Anchor.topLeft,
+      ));
+      add(leftDoor);
+
+      // Create an exit door at the far right of the tiled ground that will
+      // trigger the next transition (Nivel 3)
+      final PositionComponent exitDoor = PositionComponent(
+        // place the exit door at the right edge of the visible screen
+        position: Vector2(size.x - doorWidth, groundPos.y - doorHeight),
+        size: Vector2(doorWidth, doorHeight),
+        anchor: Anchor.topLeft,
+      );
+      exitDoor.add(RectangleComponent(
+        size: Vector2(doorWidth, doorHeight),
+        paint: Paint()..color = Colors.brown,
+        anchor: Anchor.topLeft,
+      ));
+      add(exitDoor);
+
+      // Make the exit door the active trigger for startDoorClose
+      final oldDoor = door;
+      door = exitDoor;
+      if (oldDoor != null) oldDoor.removeFromParent();
+
+      if (savedPlayer != null) {
+        // place player to the right of the left door so it's "junto a la puerta"
+        savedPlayer.position = Vector2(doorWidth + 4.0, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
+        savedPlayer.velocity.x = 0;
+        savedPlayer.moveLeft = false;
+        savedPlayer.moveRight = false;
+        add(savedPlayer);
+      }
+
+      // Start opening animation (reverse of closing)
+      _doorState = DoorState.opening;
+      // mark that second level is now active and allow future transitions
+      _secondLevelActive = true;
+      _doorUsed = false;
+
+      return;
     }
 
-    // Add groundTiles to the game beneath the player: remove player, add groundTiles, re-add player
-    final Player? savedPlayer = player;
-    if (savedPlayer != null) remove(savedPlayer);
-    add(groundTiles!);
+    // If we ARE in second-level mode and next level is not yet created,
+    // then this closure corresponds to the transition into Nivel 3.
+    if (_secondLevelActive && !_thirdLevelActive) {
+      // Clean up second-level specific state
+      _secondLevelActive = false;
+      _fallTriggered = false;
+      for (final t in _fallingTiles) t.removeFromParent();
+      _fallingTiles.clear();
+      if (groundTiles != null) {
+        groundTiles!.removeFromParent();
+        groundTiles = null;
+      }
+      for (final s in spawnedSpikes) s.removeFromParent();
+      spawnedSpikes.clear();
 
-    // Create new left-side door and teleport player next to it
-    final double doorWidth = 40.0;
-    final double doorHeight = groundHeight;
-    final PositionComponent newDoor = PositionComponent(
-      position: Vector2(0, groundPos.y - doorHeight),
-      size: Vector2(doorWidth, doorHeight),
-      anchor: Anchor.topLeft,
-    );
-    newDoor.add(RectangleComponent(
-      size: Vector2(doorWidth, doorHeight),
-      paint: Paint()..color = Colors.brown,
-      anchor: Anchor.topLeft,
-    ));
-    add(newDoor);
-    // remove old right-side door if present
-    final oldDoor = door;
-    door = newDoor;
-    if (oldDoor != null) oldDoor.removeFromParent();
+      // Build Nivel 3 as a tiled ground repeating a 6-tile sequence across 8x width
+      final double targetWidth = size.x * 8.0;
+      final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
+      if (ground != null) {
+        ground!.removeFromParent();
+        ground = null;
+      }
+      if (groundTiles != null) {
+        groundTiles!.removeFromParent();
+        groundTiles = null;
+      }
 
-    if (savedPlayer != null) {
-      // place player to the right of the left door so it's "junto a la puerta"
-      savedPlayer.position = Vector2(doorWidth + 4.0, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
-      savedPlayer.velocity.x = 0;
-      savedPlayer.moveLeft = false;
-      savedPlayer.moveRight = false;
-      add(savedPlayer);
+      groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
+
+      final List<String> tileNamesLevel3 = [
+        'piso1_2_chico.png',
+        'piso2_2_chico.png',
+        'piso3_2_chico.png',
+        'piso4_2_chico.png',
+        'piso5_2_chico.png',
+        'piso6_2_chico.png',
+      ];
+
+      double cursorX = 0.0;
+      int idx = 0;
+      while (cursorX < targetWidth) {
+        final name = tileNamesLevel3[idx % tileNamesLevel3.length];
+        ui.Image? img;
+        try {
+          await images.load(name);
+          img = images.fromCache(name);
+        } catch (_) {
+          img = null;
+        }
+        if (img == null) { idx++; continue; }
+
+        final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+        final int naturalH = (img.height - topOpaque).clamp(1, img.height);
+        final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
+          ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
+          : Sprite(img);
+
+        final double tileScale = groundHeight / naturalH;
+        final double tileW = img.width * tileScale;
+
+        final SpriteComponent tileComp = SpriteComponent(
+          sprite: tileSprite,
+          size: Vector2(tileW, groundHeight),
+          position: Vector2(cursorX, 0),
+          anchor: Anchor.topLeft,
+        );
+        groundTiles!.add(tileComp);
+        cursorX += tileW;
+        idx++;
+      }
+
+      add(groundTiles!);
+
+      // Teleport player to start of Nivel 3
+      final Player? savedPlayer = player;
+      if (savedPlayer != null) {
+        remove(savedPlayer);
+        savedPlayer.position = Vector2(_playerStartX, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
+        savedPlayer.velocity.x = 0;
+        savedPlayer.moveLeft = false;
+        savedPlayer.moveRight = false;
+        add(savedPlayer);
+      }
+
+      // Allow level 3 obstacles to spawn: reuse spike spawner by ensuring flags
+      _thirdLevelActive = true;
+      _secondLevelActive = false;
+      // spawn spikes for Nivel 3
+      await _spawnThreeSpikes(size);
+
+      // Open the muro to reveal Nivel 3
+      _doorState = DoorState.opening;
+      // ensure door flag reset
+      _doorUsed = false;
+      return;
     }
-
-    // Start opening animation (reverse of closing)
-    _doorState = DoorState.opening;
-    // mark that second level is now active
-    _secondLevelActive = true;
   }
 
   /// Find two tiles near the player and make them fall (so they create a hole).
@@ -401,8 +496,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     }
     if (found == -1) return;
 
-    // choose this tile and the next one (right-adjacent) to fall
-    final List<int> indices = [found, (found + 1) % tiles.length];
+    // choose this tile and the next two (right-adjacent) to fall so three contiguous
+    final List<int> indices = [found, (found + 1) % tiles.length, (found + 2) % tiles.length];
     for (final idx in indices) {
       final t = tiles[idx];
       // compute global position
@@ -518,7 +613,23 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       anchor: Anchor.topLeft,
     ));
     add(newDoor);
-    door = newDoor;
+
+    // create exit door at the far right of the tiled ground (so player can trigger transition)
+    final PositionComponent exitDoor = PositionComponent(
+      // place the exit door at the right edge of the visible screen
+      position: Vector2(size.x - doorWidth, groundPos.y - groundHeight),
+      size: Vector2(doorWidth, groundHeight),
+      anchor: Anchor.topLeft,
+    );
+    exitDoor.add(RectangleComponent(
+      size: Vector2(doorWidth, groundHeight),
+      paint: Paint()..color = Colors.brown,
+      anchor: Anchor.topLeft,
+    ));
+    add(exitDoor);
+
+    // Make the exit door the active trigger
+    door = exitDoor;
 
     if (savedPlayer != null) {
       savedPlayer.position = Vector2(doorWidth + 4.0, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
@@ -530,7 +641,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
     // re-enable second level and reset void-fall state so controls work
     _secondLevelActive = true;
-    _doorUsed = true;
+    // Ensure the door can be used for transition (not marked as already used)
+    _doorUsed = false;
     _inVoidFalling = false;
     _voidFallTimer = 0.0;
     // Ensure game is in playing state and no spikes are spawned
