@@ -32,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isTransitioning = false;
   double _fadeToBlack = 0.0;
   bool _showDoor = false;
+  bool _showCoinStore = false;
 
   // Video asset constants
   static const String _videoFlame = 'assets/videos/flame.mp4';
@@ -512,6 +513,190 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
+
+          // Widget para Tienda solo si el video es store.mp4
+          if (_isInitialized && _currentVideoAsset == _videoStore)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.35,
+                height: double.infinity,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(0),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
+                    child: Container(
+                      color: const Color.fromARGB(
+                        255,
+                        0,
+                        0,
+                        0,
+                      ).withValues(alpha: 0.25),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 48,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              if (_showCoinStore)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_back_ios,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _showCoinStore = false;
+                                    });
+                                  },
+                                )
+                              else
+                                const SizedBox(width: 48), // Spacer to balance
+                              Expanded(
+                                child: Text(
+                                  _showCoinStore ? 'Monedas' : 'Tienda',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontFamily: 'Spectral',
+                                    fontSize: 32,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w300,
+                                    letterSpacing: 1,
+                                    shadows: [
+                                      Shadow(
+                                        offset: Offset(1, 1),
+                                        blurRadius: 6,
+                                        color: Colors.black38,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (!_showCoinStore)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_forward_ios,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _showCoinStore = true;
+                                    });
+                                  },
+                                )
+                              else
+                                const SizedBox(width: 48), // Spacer to balance
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          Expanded(
+                            child: ListView(
+                              padding: EdgeInsets.zero,
+                              children: _showCoinStore
+                                  ? [
+                                      _buildStoreItem(
+                                        Icons.monetization_on,
+                                        'Pila de Monedas',
+                                        '\$50 MXN',
+                                        Colors.amber,
+                                        isRealMoney: true,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.savings,
+                                        'Bolsa de Monedas',
+                                        '\$120 MXN',
+                                        Colors.amberAccent,
+                                        isRealMoney: true,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.account_balance_wallet,
+                                        'Cofre de Monedas',
+                                        '\$250 MXN',
+                                        Colors.orange,
+                                        isRealMoney: true,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.diamond,
+                                        'Tesoro Real',
+                                        '\$350 MXN',
+                                        Colors.cyanAccent,
+                                        isRealMoney: true,
+                                      ),
+                                    ]
+                                  : [
+                                      _buildStoreItem(
+                                        Icons.favorite,
+                                        'Poción de Vida',
+                                        '500',
+                                        Colors.redAccent,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.water_drop,
+                                        'Poción de Maná',
+                                        '300',
+                                        Colors.blueAccent,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.handyman,
+                                        'Espada de Hierro',
+                                        '1500',
+                                        Colors.blueGrey,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.shield,
+                                        'Escudo de Madera',
+                                        '800',
+                                        Colors.brown,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.directions_run,
+                                        'Botas Veloces',
+                                        '1200',
+                                        Colors.green,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.circle,
+                                        'Anillo de Fuerza',
+                                        '2500',
+                                        Colors.amber,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.security,
+                                        'Amuleto Protección',
+                                        '3000',
+                                        Colors.purpleAccent,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildStoreItem(
+                                        Icons.map,
+                                        'Mapa del Tesoro',
+                                        '5000',
+                                        Colors.yellowAccent,
+                                      ),
+                                    ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           // Si no está inicializado, mostrar cargando (mejora UX)
           if (!_isInitialized)
             const Center(
@@ -625,6 +810,64 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStoreItem(
+    IconData icon,
+    String name,
+    String price,
+    Color iconColor, {
+    bool isRealMoney = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: Card(
+        color: Colors.white.withValues(alpha: 0.1),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Icon(icon, color: iconColor, size: 28),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontFamily: 'Spectral',
+                    fontSize: 18,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w300,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                price,
+                style: TextStyle(
+                  fontFamily: 'Spectral',
+                  fontSize: 18,
+                  color: isRealMoney ? Colors.greenAccent : Colors.amber,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (!isRealMoney) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.monetization_on,
+                  color: Colors.amber,
+                  size: 16,
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
