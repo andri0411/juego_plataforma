@@ -3,7 +3,8 @@ import 'package:flame/game.dart';
 import 'package:kaelenlegacy/game/backend/runner_game.dart';
 
 class GameScreen extends StatelessWidget {
-  const GameScreen({super.key});
+  final int? startMap;
+  const GameScreen({super.key, this.startMap});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +18,7 @@ class GameScreen extends StatelessWidget {
           ),
         ),
         child: GameWidget(
-          game: RunnerGame(),
+          game: RunnerGame(startMap: startMap),
           overlayBuilderMap: {
             'Controls': (context, game) {
               final RunnerGame g = game as RunnerGame;
@@ -101,6 +102,17 @@ class GameScreen extends StatelessWidget {
                   ),
                 ),
               );
+            }
+            ,
+            'ReturnHome': (context, game) {
+              // Post-frame pop back to home with a specific result so
+              // HomeScreen can jump to the final part of showmap.mp4.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop('activate_second_door');
+                }
+              });
+              return const SizedBox.shrink();
             }
           },
           initialActiveOverlays: const ['Controls'],

@@ -34,6 +34,8 @@ class _HomeScreenState extends State<HomeScreen>
   double _fadeToBlack = 0.0;
   bool _showDoor = false;
   bool _showCoinStore = false;
+  // Door unlocked state: index 0..4 correspond to doors 1..5
+  List<bool> _doorUnlocked = [true, false, false, false, false];
 
   int _coins = 1500;
   final List<String> _inventory = [];
@@ -140,6 +142,10 @@ class _HomeScreenState extends State<HomeScreen>
     final cleanOption = option.replaceAll('\n', ' ');
     // Solo acciones especiales al tap en "New Game" y "Quit"
     if (cleanOption == 'New Game') {
+      // reset door unlocks when starting a new game
+      setState(() {
+        _doorUnlocked = [true, false, false, false, false];
+      });
       setState(() => _videoOpacity = 0.0);
       await Future.delayed(const Duration(milliseconds: 500));
       await _initAndPlayAsset(_videoNewGameIntro, looping: false);
@@ -258,13 +264,39 @@ class _HomeScreenState extends State<HomeScreen>
                         top: 0,
                         left: MediaQuery.of(context).size.width / 2 - 320,
                         child: GestureDetector(
-                          onTap: () async {
+                            onTap: () async {
                             setState(() => _showDoor = false);
-                            Navigator.of(context).push(
+                            final result = await Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => const GameScreen(),
                               ),
                             );
+                            // If game requested returning to home and activating
+                            // the second door, prepare showmap at its final part
+                            if (result == 'activate_second_door') {
+                              // unlock door 2 (index 1)
+                              setState(() {
+                                _doorUnlocked[1] = true;
+                              });
+                              // Initialize showmap and seek to near the end
+                              await _initAndPlayAsset(_videoShowMap, looping: false);
+                              final dur = _controller.value.duration;
+                              if (dur.inMilliseconds > 0) {
+                                final seekTo = dur - const Duration(milliseconds: 600);
+                                if (seekTo > Duration.zero) {
+                                  try {
+                                    await _controller.seekTo(seekTo);
+                                  } catch (_) {}
+                                }
+                              }
+                              try {
+                                await _controller.pause();
+                              } catch (_) {}
+                              if (!mounted) return;
+                              setState(() {
+                                _showDoor = true;
+                              });
+                            }
                           },
                           child: Image.asset(
                             'assets/images/door.png',
@@ -278,12 +310,25 @@ class _HomeScreenState extends State<HomeScreen>
                         top: 100,
                         left: MediaQuery.of(context).size.width / 2 - 160,
                         child: GestureDetector(
-                          onTap: null,
+                          onTap: _doorUnlocked[1]
+                              ? () async {
+                                  setState(() => _showDoor = false);
+                                  final result = await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const GameScreen(startMap: 2),
+                                    ),
+                                  );
+                                  // propagate activation if requested by game
+                                  if (result == 'activate_second_door') {
+                                    setState(() => _doorUnlocked[1] = true);
+                                  }
+                                }
+                              : null,
                           child: Image.asset(
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: Colors.grey.shade700,
+                            color: _doorUnlocked[1] ? null : Colors.grey.shade700,
                           ),
                         ),
                       ),
@@ -292,12 +337,21 @@ class _HomeScreenState extends State<HomeScreen>
                         top: 190,
                         left: MediaQuery.of(context).size.width / 2,
                         child: GestureDetector(
-                          onTap: null,
+                          onTap: _doorUnlocked[2]
+                              ? () async {
+                                  setState(() => _showDoor = false);
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const GameScreen(),
+                                    ),
+                                  );
+                                }
+                              : null,
                           child: Image.asset(
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: Colors.grey.shade700,
+                            color: _doorUnlocked[2] ? null : Colors.grey.shade700,
                           ),
                         ),
                       ),
@@ -306,12 +360,21 @@ class _HomeScreenState extends State<HomeScreen>
                         top: 40,
                         left: MediaQuery.of(context).size.width / 2 + 130 + 24,
                         child: GestureDetector(
-                          onTap: null,
+                          onTap: _doorUnlocked[3]
+                              ? () async {
+                                  setState(() => _showDoor = false);
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const GameScreen(),
+                                    ),
+                                  );
+                                }
+                              : null,
                           child: Image.asset(
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: Colors.grey.shade700,
+                            color: _doorUnlocked[3] ? null : Colors.grey.shade700,
                           ),
                         ),
                       ),
@@ -320,12 +383,21 @@ class _HomeScreenState extends State<HomeScreen>
                         top: 200,
                         left: MediaQuery.of(context).size.width / 2 + 2 * (130),
                         child: GestureDetector(
-                          onTap: null,
+                          onTap: _doorUnlocked[4]
+                              ? () async {
+                                  setState(() => _showDoor = false);
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const GameScreen(),
+                                    ),
+                                  );
+                                }
+                              : null,
                           child: Image.asset(
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: Colors.grey.shade700,
+                            color: _doorUnlocked[4] ? null : Colors.grey.shade700,
                           ),
                         ),
                       ),

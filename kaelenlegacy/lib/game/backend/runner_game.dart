@@ -14,6 +14,8 @@ import 'collision_utils.dart';
 enum DoorState { idle, closing, closed, opening, opened }
 
 class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
+  final int? startMap;
+  RunnerGame({this.startMap});
   GameState gameState = GameState.intro;
   Player? player;
   SpriteComponent? background;
@@ -89,6 +91,13 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (size != Vector2.zero()) {
       await _buildScene(size);
     }
+    // If requested to start directly at map 2, build the second-level scene
+    if (startMap == 2) {
+      // ensure door flags are reset and then build level 2
+      _doorUsed = false;
+      _doorState = DoorState.opened; // mark opened so player can trigger close
+      await _onWallClosed();
+    }
     // Start in intro state, wait for a tap to begin
     gameState = GameState.intro;
   }
@@ -102,7 +111,14 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     // Allow triggering when the muro is idle or already opened (ready to close again).
     if ((_doorState == DoorState.idle || _doorState == DoorState.opened) && !_doorUsed && player != null && door != null) {
       if (player!.toRect().overlaps(door!.toRect())) {
-        startDoorClose();
+        // If we're in third level, touching the right door should return to
+        // the home screen and request the 'activate_second_door' flow.
+        if (_thirdLevelActive) {
+          // add an overlay which the UI layer will use to pop with a result
+          overlays.add('ReturnHome');
+        } else {
+          startDoorClose();
+        }
       }
     }
 
@@ -864,12 +880,18 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
     final double visibleTop = canvasSize.y - groundHeight - groundVisualOffset;
 
-    // images to use in order
-    final names = [
-      'pinchos_tres_mapa.png',
-      'pinchos_dos_mapa.png',
-      'pinchos_tres_mapa.png',
-    ];
+    // images to use in order. Use level-3 variants when in Nivel 3, otherwise keep original
+    final names = _thirdLevelActive
+      ? [
+          'pinchos_tres_nvl2.png',
+          'pinchos_dos_nvl2.png',
+          'pinchos_tres_nvl2.png',
+        ]
+      : [
+          'pinchos_tres_mapa.png',
+          'pinchos_dos_mapa.png',
+          'pinchos_tres_mapa.png',
+        ];
 
     // Load all images first
     final List<ui.Image> imgs = [];
