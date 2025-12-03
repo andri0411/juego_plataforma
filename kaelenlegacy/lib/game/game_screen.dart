@@ -59,7 +59,7 @@ class GameScreen extends StatelessWidget {
                           ],
                         ),
                         GestureDetector(
-                          onTap: () => g.jump(),
+                          onTapDown: (_) => g.jump(),
                           child: Container(
                             width: 80,
                             height: 80,

@@ -777,12 +777,12 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     }
 
     // Si el jugador ya existe, lo elimina para recrearlo
-    if (player != null) {
+    if (player != null) { 
       remove(player!);
     }
 
-    // Crea y posiciona al jugador
-    player = Player(size: Vector2(50, 50));
+    // Crea y posiciona al jugador (un poco más grande)
+    player = Player(size: Vector2(60, 68));
     player!.position =
       Vector2(_playerStartX, canvasSize.y - groundHeight - player!.size.y - groundVisualOffset);
     add(player!);
@@ -1004,16 +1004,28 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
   // Temporizador para el buffer de salto (0.1 segundos)
   double _jumpBufferTimer = 0.0;
 
-  Player({Vector2? position, Vector2? size}) : super(position: position ?? Vector2.zero(), size: size ?? Vector2(50, 50));
+  Player({Vector2? position, Vector2? size}) : super(position: position ?? Vector2.zero(), size: size ?? Vector2(64, 64));
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
     anchor = Anchor.topLeft;
-    add(RectangleComponent(
-      size: size,
-      paint: Paint()..color = Colors.red,
-    ));
+    // Try to load the sprite image for the player. If missing, fall back to a red rectangle.
+    try {
+      await gameRef.images.load('Personaje_quieto.png');
+      final ui.Image img = gameRef.images.fromCache('Personaje_quieto.png');
+      add(SpriteComponent(
+        sprite: Sprite(img),
+        size: size,
+        position: Vector2.zero(),
+        anchor: Anchor.topLeft,
+      ));
+    } catch (e) {
+      add(RectangleComponent(
+        size: size,
+        paint: Paint()..color = Colors.red,
+      ));
+    }
   }
 
   @override
