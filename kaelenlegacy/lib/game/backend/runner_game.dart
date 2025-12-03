@@ -995,6 +995,10 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
   bool moveRight = false;
   double invulnerable = 0.0;
 
+  late SpriteAnimation walkingAnimation;
+  late SpriteAnimation idleAnimation;
+  late SpriteAnimationComponent _anim;
+
   final double acceleration = 1200;
   final double maxSpeed = 350;
   final double friction = 600;
@@ -1010,16 +1014,24 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
   Future<void> onLoad() async {
     await super.onLoad();
     anchor = Anchor.topLeft;
-    // Try to load the sprite image for the player. If missing, fall back to a red rectangle.
+    // Load walking frames and idle sprite; fall back to rectangle if any load fails.
     try {
+      await gameRef.images.load('personaje_paso1.png');
+      await gameRef.images.load('personaje_paso2.png');
+      await gameRef.images.load('personaje_paso3.png');
       await gameRef.images.load('Personaje_quieto.png');
-      final ui.Image img = gameRef.images.fromCache('Personaje_quieto.png');
-      add(SpriteComponent(
-        sprite: Sprite(img),
-        size: size,
-        position: Vector2.zero(),
-        anchor: Anchor.topLeft,
-      ));
+
+      final ui.Image img1 = gameRef.images.fromCache('personaje_paso1.png');
+      final ui.Image img2 = gameRef.images.fromCache('personaje_paso2.png');
+      final ui.Image img3 = gameRef.images.fromCache('personaje_paso3.png');
+      final ui.Image idleImg = gameRef.images.fromCache('Personaje_quieto.png');
+
+      final sprites = [Sprite(img1), Sprite(img2), Sprite(img3)];
+      walkingAnimation = SpriteAnimation.spriteList(sprites, stepTime: 0.12, loop: true);
+      idleAnimation = SpriteAnimation.spriteList([Sprite(idleImg)], stepTime: 1.0, loop: true);
+
+      _anim = SpriteAnimationComponent(animation: idleAnimation, size: size, anchor: Anchor.topLeft);
+      add(_anim);
     } catch (e) {
       add(RectangleComponent(
         size: size,
@@ -1101,6 +1113,21 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
     if (invulnerable > 0) {
       invulnerable -= dt;
       if (invulnerable < 0) invulnerable = 0;
+    }
+
+    // Update sprite animation based on movement state
+    try {
+      // If any horizontal movement, play walking animation; otherwise show idle
+      final bool isMovingHorizontally = moveLeft || moveRight;
+      if (isMovingHorizontally && _anim.animation != walkingAnimation) {
+        _anim.animation = walkingAnimation;
+      } else if (!isMovingHorizontally && _anim.animation != idleAnimation) {
+        _anim.animation = idleAnimation;
+      }
+      // Flip sprite when moving left by negating X scale (safe fallback)
+      _anim.scale.x = moveLeft ? -1.0 : 1.0;
+    } catch (_) {
+      // If animation component not present (fallback rectangle), ignore
     }
   }
 
