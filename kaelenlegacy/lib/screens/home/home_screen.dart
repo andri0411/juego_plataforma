@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'providers/settings_config_provider.dart';
 import 'widgets/login_widget.dart';
 import 'widgets/payment_widget.dart';
+import 'providers/auth_provider.dart';
 import '../../game/game_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -264,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen>
                         top: 0,
                         left: MediaQuery.of(context).size.width / 2 - 320,
                         child: GestureDetector(
-                            onTap: () async {
+                          onTap: () async {
                             setState(() => _showDoor = false);
                             final result = await Navigator.of(context).push(
                               MaterialPageRoute(
@@ -280,10 +281,14 @@ class _HomeScreenState extends State<HomeScreen>
                                 _doorUnlocked[1] = true;
                               });
                               // Initialize showmap and seek to near the end
-                              await _initAndPlayAsset(_videoShowMap, looping: false);
+                              await _initAndPlayAsset(
+                                _videoShowMap,
+                                looping: false,
+                              );
                               final dur = _controller.value.duration;
                               if (dur.inMilliseconds > 0) {
-                                final seekTo = dur - const Duration(milliseconds: 600);
+                                final seekTo =
+                                    dur - const Duration(milliseconds: 600);
                                 if (seekTo > Duration.zero) {
                                   try {
                                     await _controller.seekTo(seekTo);
@@ -297,7 +302,8 @@ class _HomeScreenState extends State<HomeScreen>
                               setState(() {
                                 _showDoor = true;
                               });
-                            } else if (result is String && result.startsWith('unlock:')) {
+                            } else if (result is String &&
+                                result.startsWith('unlock:')) {
                               final parts = result.split(':');
                               final n = int.tryParse(parts[1]) ?? 1;
                               setState(() {
@@ -323,19 +329,26 @@ class _HomeScreenState extends State<HomeScreen>
                           onTap: _doorUnlocked[1]
                               ? () async {
                                   setState(() => _showDoor = false);
-                                  final result = await Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const GameScreen(startMap: 2),
-                                    ),
-                                  );
+                                  final result = await Navigator.of(context)
+                                      .push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const GameScreen(startMap: 2),
+                                        ),
+                                      );
                                   // propagate activation or unlock info when returned
                                   if (result == 'activate_second_door') {
                                     setState(() => _doorUnlocked[1] = true);
-                                  } else if (result is String && result.startsWith('unlock:')) {
+                                  } else if (result is String &&
+                                      result.startsWith('unlock:')) {
                                     final parts = result.split(':');
                                     final n = int.tryParse(parts[1]) ?? 1;
                                     setState(() {
-                                      for (int i = 0; i < _doorUnlocked.length; i++) {
+                                      for (
+                                        int i = 0;
+                                        i < _doorUnlocked.length;
+                                        i++
+                                      ) {
                                         _doorUnlocked[i] = i < n;
                                       }
                                     });
@@ -346,7 +359,9 @@ class _HomeScreenState extends State<HomeScreen>
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: _doorUnlocked[1] ? null : Colors.grey.shade700,
+                            color: _doorUnlocked[1]
+                                ? null
+                                : Colors.grey.shade700,
                           ),
                         ),
                       ),
@@ -369,7 +384,9 @@ class _HomeScreenState extends State<HomeScreen>
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: _doorUnlocked[2] ? null : Colors.grey.shade700,
+                            color: _doorUnlocked[2]
+                                ? null
+                                : Colors.grey.shade700,
                           ),
                         ),
                       ),
@@ -392,7 +409,9 @@ class _HomeScreenState extends State<HomeScreen>
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: _doorUnlocked[3] ? null : Colors.grey.shade700,
+                            color: _doorUnlocked[3]
+                                ? null
+                                : Colors.grey.shade700,
                           ),
                         ),
                       ),
@@ -415,7 +434,9 @@ class _HomeScreenState extends State<HomeScreen>
                             'assets/images/door.png',
                             width: 130,
                             height: 195,
-                            color: _doorUnlocked[4] ? null : Colors.grey.shade700,
+                            color: _doorUnlocked[4]
+                                ? null
+                                : Colors.grey.shade700,
                           ),
                         ),
                       ),
@@ -568,37 +589,82 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                           ),
                           const SizedBox(height: 8),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.amber,
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                              textStyle: const TextStyle(
-                                fontFamily: 'Spectral',
-                                fontSize: 20,
-                                fontWeight: FontWeight.w300,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => const LoginWidget(),
-                                ),
-                              );
+                          Consumer<AuthProvider>(
+                            builder: (context, auth, child) {
+                              if (auth.isLoggedIn) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Usuario: ${auth.currentUser}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Spectral',
+                                        fontSize: 18,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.redAccent,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 12,
+                                        ),
+                                        textStyle: const TextStyle(
+                                          fontFamily: 'Spectral',
+                                          fontSize: 18,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        auth.logout();
+                                      },
+                                      child: const Text('Cerrar sesión'),
+                                    ),
+                                  ],
+                                );
+                              } else {
+                                return ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.amber,
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 12,
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontFamily: 'Spectral',
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginWidget(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text(
+                                    'Iniciar sesión',
+                                    style: TextStyle(
+                                      fontFamily: 'Spectral',
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                  ),
+                                );
+                              }
                             },
-                            child: const Text(
-                              'Iniciar sesión',
-                              style: TextStyle(
-                                fontFamily: 'Spectral',
-                                fontWeight: FontWeight.w300,
-                              ),
-                            ),
                           ),
                         ],
                       ),

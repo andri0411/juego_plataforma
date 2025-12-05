@@ -14,7 +14,8 @@ import 'collision_utils.dart';
 // Helper entry for spikes that slide from off-screen into their final X.
 class _SlidingSpikeEntry {
   final Spike spike;
-  final double targetX; // final center x position (matching spike.position.x semantics)
+  final double
+  targetX; // final center x position (matching spike.position.x semantics)
   final double speed; // px/s moving leftwards
   final double triggerAtX; // player center X at which the spike starts moving
   bool started = false;
@@ -68,7 +69,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   // Void-fall detection and control-lock
   bool _inVoidFalling = false;
   double _voidFallTimer = 0.0;
-  final double _voidFallTimeout = 1.2; // seconds before registering death (allow visible fall)
+  final double _voidFallTimeout =
+      1.2; // seconds before registering death (allow visible fall)
 
   @override
   Future<void> onLoad() async {
@@ -90,13 +92,19 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     final groundImage = await images.load('piso_mapa.png');
 
     // Detectar y recortar la parte transparente superior de la imagen del suelo
-    final int topOpaque = await _findTopOpaquePixel(groundImage, alphaThreshold: 8);
+    final int topOpaque = await _findTopOpaquePixel(
+      groundImage,
+      alphaThreshold: 8,
+    );
     Sprite groundSprite;
     if (topOpaque > 0 && topOpaque < groundImage.height) {
       groundSprite = Sprite(
         groundImage,
         srcPosition: Vector2(0, topOpaque.toDouble()),
-        srcSize: Vector2(groundImage.width.toDouble(), (groundImage.height - topOpaque).toDouble()),
+        srcSize: Vector2(
+          groundImage.width.toDouble(),
+          (groundImage.height - topOpaque).toDouble(),
+        ),
       );
     } else {
       groundSprite = Sprite(groundImage);
@@ -165,7 +173,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
     // If player touches the door trigger, start closing the muro (only once).
     // Allow triggering when the muro is idle or already opened (ready to close again).
-    if ((_doorState == DoorState.idle || _doorState == DoorState.opened) && !_doorUsed && player != null && door != null) {
+    if ((_doorState == DoorState.idle || _doorState == DoorState.opened) &&
+        !_doorUsed &&
+        player != null &&
+        door != null) {
       if (player!.toRect().overlaps(door!.toRect())) {
         // If we're in third level, touching the right door should return to
         // the home screen and request the 'activate_second_door' flow.
@@ -203,7 +214,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       if (_muroBottom != null) _muroBottom!.position.y += move;
       // If they are fully off-screen, finish opening
       if (_muroTop != null && _muroBottom != null) {
-        if (_muroTop!.position.y + _muroTop!.size.y <= 0 && _muroBottom!.position.y >= size.y) {
+        if (_muroTop!.position.y + _muroTop!.size.y <= 0 &&
+            _muroBottom!.position.y >= size.y) {
           // Finished opening
           _doorState = DoorState.opened;
           // cleanup muro pieces
@@ -213,9 +225,9 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
           _muroBottom = null;
           // Keep the `door` component (it may be the newly-created exit door).
           // Allow the door to be used again for subsequent transitions
-            _doorUsed = false;
-            // Re-enable controls now that opening finished
-            _controlsLocked = false;
+          _doorUsed = false;
+          // Re-enable controls now that opening finished
+          _controlsLocked = false;
         }
       }
     }
@@ -273,7 +285,12 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (player != null) {
       final playerRect = player!.toRect();
       for (final s in spawnedSpikes) {
-        if (checkPixelPerfectCollision(playerRect, s, playerMask: player!.alphaMask, playerNaturalSize: player!.naturalSize)) {
+        if (checkPixelPerfectCollision(
+          playerRect,
+          s,
+          playerMask: player!.alphaMask,
+          playerNaturalSize: player!.naturalSize,
+        )) {
           onPlayerDied();
           break;
         }
@@ -293,7 +310,9 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   /// Start the door closing animation: spawn two muro pieces (top & bottom)
   Future<void> startDoorClose() async {
     // allow starting the close animation when muro is idle or already opened
-    if (!(_doorState == DoorState.idle || _doorState == DoorState.opened) || _doorUsed) return;
+    if (!(_doorState == DoorState.idle || _doorState == DoorState.opened) ||
+        _doorUsed)
+      return;
     _doorState = DoorState.closing;
 
     // Stop player horizontal movement while the door closes
@@ -354,17 +373,31 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (!_secondLevelActive) {
       // Build tiled ground from five images repeated to cover 8x width
       // Remove background and any spikes for the next level (leave only the ground)
+      // Remove background and any spikes for the next level (leave only the ground)
       if (background != null) {
         background!.removeFromParent();
         background = null;
       }
+
+      // Load and add the new background for Level 2
+      final bgImage = await images.load('fondo2.png');
+      background = SpriteComponent(
+        sprite: Sprite(bgImage),
+        size: size,
+        position: Vector2.zero(),
+        anchor: Anchor.topLeft,
+      );
+      add(background!);
       for (final s in spawnedSpikes) {
         s.removeFromParent();
       }
       spawnedSpikes.clear();
 
       final double targetWidth = size.x * 8.0;
-      final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
+      final Vector2 groundPos = Vector2(
+        0,
+        size.y - groundHeight - groundVisualOffset,
+      );
       if (ground != null) {
         ground!.removeFromParent();
         ground = null;
@@ -374,20 +407,24 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         groundTiles = null;
       }
 
-      groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
+      groundTiles = PositionComponent(
+        position: groundPos,
+        size: Vector2(targetWidth, groundHeight),
+        anchor: Anchor.topLeft,
+      );
 
       // names and order for tiles
       // If the game was started directly from the second door (startMap==2),
       // build the second-level ground using the special part-2 floor image.
       final List<String> tileNames = (startMap == 2)
-        ? ['piso_nvl1_pt2.png']
-        : [
-            'piso_1_mapa.png',
-            'piso_2_mapa.png',
-            'piso_3_mapa.png',
-            'piso_14_mapa.png',
-            'piso_5_mapa.png',
-          ];
+          ? ['piso_nvl1_pt2.png']
+          : [
+              'piso_1_mapa.png',
+              'piso_2_mapa.png',
+              'piso_3_mapa.png',
+              'piso_14_mapa.png',
+              'piso_5_mapa.png',
+            ];
 
       double cursorX = 0.0;
       int idx = 0;
@@ -400,13 +437,20 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         } catch (e) {
           img = null;
         }
-        if (img == null) { idx++; continue; }
+        if (img == null) {
+          idx++;
+          continue;
+        }
 
         final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
         final int naturalH = (img.height - topOpaque).clamp(1, img.height);
         final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
-          ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
-          : Sprite(img);
+            ? Sprite(
+                img,
+                srcPosition: Vector2(0, topOpaque.toDouble()),
+                srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()),
+              )
+            : Sprite(img);
 
         final double tileScale = groundHeight / naturalH;
         final double tileW = img.width * tileScale;
@@ -422,8 +466,6 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         idx++;
       }
 
-      
-
       // Add groundTiles to the game beneath the player: remove player, add groundTiles, re-add player
       final Player? savedPlayer = player;
       if (savedPlayer != null) remove(savedPlayer);
@@ -437,11 +479,13 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         size: Vector2(doorWidth, doorHeight),
         anchor: Anchor.topLeft,
       );
-      leftDoor.add(RectangleComponent(
-        size: Vector2(doorWidth, doorHeight),
-        paint: Paint()..color = Colors.brown,
-        anchor: Anchor.topLeft,
-      ));
+      leftDoor.add(
+        RectangleComponent(
+          size: Vector2(doorWidth, doorHeight),
+          paint: Paint()..color = Colors.brown,
+          anchor: Anchor.topLeft,
+        ),
+      );
       add(leftDoor);
 
       // Create an exit door at the far right of the tiled ground that will
@@ -452,11 +496,13 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         size: Vector2(doorWidth, doorHeight),
         anchor: Anchor.topLeft,
       );
-      exitDoor.add(RectangleComponent(
-        size: Vector2(doorWidth, doorHeight),
-        paint: Paint()..color = Colors.brown,
-        anchor: Anchor.topLeft,
-      ));
+      exitDoor.add(
+        RectangleComponent(
+          size: Vector2(doorWidth, doorHeight),
+          paint: Paint()..color = Colors.brown,
+          anchor: Anchor.topLeft,
+        ),
+      );
       add(exitDoor);
 
       // Make the exit door the active trigger for startDoorClose
@@ -466,7 +512,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
       if (savedPlayer != null) {
         // place player to the right of the left door so it's "junto a la puerta"
-        savedPlayer.position = Vector2(doorWidth + 4.0, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
+        savedPlayer.position = Vector2(
+          doorWidth + 4.0,
+          size.y - groundHeight - savedPlayer.size.y - groundVisualOffset,
+        );
         savedPlayer.velocity.x = 0;
         savedPlayer.moveLeft = false;
         savedPlayer.moveRight = false;
@@ -500,7 +549,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
       // Build Nivel 3 as a tiled ground repeating a 6-tile sequence across 8x width
       final double targetWidth = size.x * 8.0;
-      final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
+      final Vector2 groundPos = Vector2(
+        0,
+        size.y - groundHeight - groundVisualOffset,
+      );
       if (ground != null) {
         ground!.removeFromParent();
         ground = null;
@@ -510,7 +562,11 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         groundTiles = null;
       }
 
-      groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
+      groundTiles = PositionComponent(
+        position: groundPos,
+        size: Vector2(targetWidth, groundHeight),
+        anchor: Anchor.topLeft,
+      );
 
       // If we started the game from the second door (startMap==2), build a
       // special Nivel 2 floor using `piso_nvl2_pt2.png` occupying 25% of the
@@ -525,11 +581,18 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
           img = null;
         }
         if (img != null) {
-          final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+          final int topOpaque = await _findTopOpaquePixel(
+            img,
+            alphaThreshold: 8,
+          );
           final int naturalH = (img.height - topOpaque).clamp(1, img.height);
           final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
-            ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
-            : Sprite(img);
+              ? Sprite(
+                  img,
+                  srcPosition: Vector2(0, topOpaque.toDouble()),
+                  srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()),
+                )
+              : Sprite(img);
 
           // target width is 25% of visible canvas. Place the special tile
           // pinned to the LEFT of the visible screen so the player sees it
@@ -566,13 +629,23 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
           } catch (_) {
             img = null;
           }
-          if (img == null) { idx++; continue; }
+          if (img == null) {
+            idx++;
+            continue;
+          }
 
-          final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+          final int topOpaque = await _findTopOpaquePixel(
+            img,
+            alphaThreshold: 8,
+          );
           final int naturalH = (img.height - topOpaque).clamp(1, img.height);
           final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
-            ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
-            : Sprite(img);
+              ? Sprite(
+                  img,
+                  srcPosition: Vector2(0, topOpaque.toDouble()),
+                  srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()),
+                )
+              : Sprite(img);
 
           final double tileScale = groundHeight / naturalH;
           final double tileW = img.width * tileScale;
@@ -601,18 +674,37 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
           platImg = null;
         }
         if (platImg != null) {
-          final int topOpaque = await _findTopOpaquePixel(platImg, alphaThreshold: 8);
-          final int naturalH = (platImg.height - topOpaque).clamp(1, platImg.height);
-          final Sprite platSprite = (topOpaque > 0 && topOpaque < platImg.height)
-            ? Sprite(platImg, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(platImg.width.toDouble(), naturalH.toDouble()))
-            : Sprite(platImg);
+          final int topOpaque = await _findTopOpaquePixel(
+            platImg,
+            alphaThreshold: 8,
+          );
+          final int naturalH = (platImg.height - topOpaque).clamp(
+            1,
+            platImg.height,
+          );
+          final Sprite platSprite =
+              (topOpaque > 0 && topOpaque < platImg.height)
+              ? Sprite(
+                  platImg,
+                  srcPosition: Vector2(0, topOpaque.toDouble()),
+                  srcSize: Vector2(
+                    platImg.width.toDouble(),
+                    naturalH.toDouble(),
+                  ),
+                )
+              : Sprite(platImg);
 
-          final double desiredH = groundHeight * 0.35; // platform height relative to ground
+          final double desiredH =
+              groundHeight * 0.35; // platform height relative to ground
           final double scale = desiredH / naturalH;
           final double platW = platImg.width * scale;
 
           // Pick positions distributed across the first screens of this level
-          final List<double> platformXs = [size.x * 0.5, size.x * 1.1, size.x * 1.9];
+          final List<double> platformXs = [
+            size.x * 0.5,
+            size.x * 1.1,
+            size.x * 1.9,
+          ];
           for (final px in platformXs) {
             final SpriteComponent p = SpriteComponent(
               sprite: platSprite,
@@ -644,7 +736,14 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
             anchor: Anchor.topLeft,
           );
           groundTiles!.add(tipPlat);
-          groundTiles!.add(RectangleComponent(size: tipPlat.size, position: tipPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+          groundTiles!.add(
+            RectangleComponent(
+              size: tipPlat.size,
+              position: tipPlat.position,
+              paint: Paint()..color = Colors.transparent,
+              anchor: Anchor.topLeft,
+            ),
+          );
 
           // Pyramid cluster: one top platform and two base platforms
           final double clusterCenterX = size.x * 2.6;
@@ -652,27 +751,57 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
           final SpriteComponent topPlat = SpriteComponent(
             sprite: platSprite,
             size: Vector2(platW, desiredH),
-            position: Vector2(clusterCenterX, -desiredH - (groundHeight * 0.18)),
+            position: Vector2(
+              clusterCenterX,
+              -desiredH - (groundHeight * 0.18),
+            ),
             anchor: Anchor.topLeft,
           );
           final SpriteComponent leftPlat = SpriteComponent(
             sprite: platSprite,
             size: Vector2(platW, desiredH),
-            position: Vector2(clusterCenterX - spacing, -desiredH - (groundHeight * 0.06)),
+            position: Vector2(
+              clusterCenterX - spacing,
+              -desiredH - (groundHeight * 0.06),
+            ),
             anchor: Anchor.topLeft,
           );
           final SpriteComponent rightPlat = SpriteComponent(
             sprite: platSprite,
             size: Vector2(platW, desiredH),
-            position: Vector2(clusterCenterX + spacing, -desiredH - (groundHeight * 0.06)),
+            position: Vector2(
+              clusterCenterX + spacing,
+              -desiredH - (groundHeight * 0.06),
+            ),
             anchor: Anchor.topLeft,
           );
           groundTiles!.add(topPlat);
-          groundTiles!.add(RectangleComponent(size: topPlat.size, position: topPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+          groundTiles!.add(
+            RectangleComponent(
+              size: topPlat.size,
+              position: topPlat.position,
+              paint: Paint()..color = Colors.transparent,
+              anchor: Anchor.topLeft,
+            ),
+          );
           groundTiles!.add(leftPlat);
-          groundTiles!.add(RectangleComponent(size: leftPlat.size, position: leftPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+          groundTiles!.add(
+            RectangleComponent(
+              size: leftPlat.size,
+              position: leftPlat.position,
+              paint: Paint()..color = Colors.transparent,
+              anchor: Anchor.topLeft,
+            ),
+          );
           groundTiles!.add(rightPlat);
-          groundTiles!.add(RectangleComponent(size: rightPlat.size, position: rightPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+          groundTiles!.add(
+            RectangleComponent(
+              size: rightPlat.size,
+              position: rightPlat.position,
+              paint: Paint()..color = Colors.transparent,
+              anchor: Anchor.topLeft,
+            ),
+          );
         }
       }
 
@@ -682,7 +811,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       final Player? savedPlayer = player;
       if (savedPlayer != null) {
         remove(savedPlayer);
-        savedPlayer.position = Vector2(_playerStartX, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
+        savedPlayer.position = Vector2(
+          _playerStartX,
+          size.y - groundHeight - savedPlayer.size.y - groundVisualOffset,
+        );
         savedPlayer.velocity.x = 0;
         savedPlayer.moveLeft = false;
         savedPlayer.moveRight = false;
@@ -726,7 +858,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     for (int i = 0; i < tiles.length; i++) {
       final t = tiles[i];
       final double tileGlobalX = groundTiles!.position.x + t.position.x;
-      if (playerCenterX >= tileGlobalX && playerCenterX < tileGlobalX + t.size.x) {
+      if (playerCenterX >= tileGlobalX &&
+          playerCenterX < tileGlobalX + t.size.x) {
         found = i;
         break;
       }
@@ -734,7 +867,11 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (found == -1) return;
 
     // choose this tile and the next two (right-adjacent) to fall so three contiguous
-    final List<int> indices = [found, (found + 1) % tiles.length, (found + 2) % tiles.length];
+    final List<int> indices = [
+      found,
+      (found + 1) % tiles.length,
+      (found + 2) % tiles.length,
+    ];
     for (final idx in indices) {
       final t = tiles[idx];
       // compute global position
@@ -764,7 +901,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     pauseEngine();
     // Remove game over overlay if still present
     overlays.remove('GameOver');
-    
+
     // remove muro pieces if any
     _muroTop?.removeFromParent();
     _muroBottom?.removeFromParent();
@@ -784,8 +921,18 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     _fallTriggered = false;
 
     // ensure no background and spikes
+    // ensure no background (replace with level 2 background) and spikes
     background?.removeFromParent();
     background = null;
+
+    final bgImage = await images.load('fondo2.png');
+    background = SpriteComponent(
+      sprite: Sprite(bgImage),
+      size: size,
+      position: Vector2.zero(),
+      anchor: Anchor.topLeft,
+    );
+    add(background!);
     for (final s in spawnedSpikes) s.removeFromParent();
     spawnedSpikes.clear();
     // remove any sliding spikes entries and their spike components
@@ -797,16 +944,25 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     // build second level again by reusing the onWallClosed tile-creation logic
     // we call a trimmed copy here: create tiles and left door and teleport player
     final double targetWidth = size.x * 8.0;
-    final Vector2 groundPos = Vector2(0, size.y - groundHeight - groundVisualOffset);
-    groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
+    final Vector2 groundPos = Vector2(
+      0,
+      size.y - groundHeight - groundVisualOffset,
+    );
+    groundTiles = PositionComponent(
+      position: groundPos,
+      size: Vector2(targetWidth, groundHeight),
+      anchor: Anchor.topLeft,
+    );
 
-    final List<String> tileNames = [
-      'piso_1_mapa.png',
-      'piso_2_mapa.png',
-      'piso_3_mapa.png',
-      'piso_14_mapa.png',
-      'piso_5_mapa.png',
-    ];
+    final List<String> tileNames = (startMap == 2)
+        ? ['piso_nvl1_pt2.png']
+        : [
+            'piso_1_mapa.png',
+            'piso_2_mapa.png',
+            'piso_3_mapa.png',
+            'piso_14_mapa.png',
+            'piso_5_mapa.png',
+          ];
 
     double cursorX = 0.0;
     int idx = 0;
@@ -819,12 +975,19 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       } catch (_) {
         img = null;
       }
-      if (img == null) { idx++; continue; }
+      if (img == null) {
+        idx++;
+        continue;
+      }
       final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
       final int naturalH = (img.height - topOpaque).clamp(1, img.height);
       final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
-        ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
-        : Sprite(img);
+          ? Sprite(
+              img,
+              srcPosition: Vector2(0, topOpaque.toDouble()),
+              srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()),
+            )
+          : Sprite(img);
       final double tileScale = groundHeight / naturalH;
       final double tileW = img.width * tileScale;
       final SpriteComponent tileComp = SpriteComponent(
@@ -849,11 +1012,13 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       size: Vector2(doorWidth, groundHeight),
       anchor: Anchor.topLeft,
     );
-    newDoor.add(RectangleComponent(
-      size: Vector2(doorWidth, groundHeight),
-      paint: Paint()..color = Colors.brown,
-      anchor: Anchor.topLeft,
-    ));
+    newDoor.add(
+      RectangleComponent(
+        size: Vector2(doorWidth, groundHeight),
+        paint: Paint()..color = Colors.brown,
+        anchor: Anchor.topLeft,
+      ),
+    );
     add(newDoor);
 
     // create exit door at the far right of the tiled ground (so player can trigger transition)
@@ -863,18 +1028,23 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       size: Vector2(doorWidth, groundHeight),
       anchor: Anchor.topLeft,
     );
-    exitDoor.add(RectangleComponent(
-      size: Vector2(doorWidth, groundHeight),
-      paint: Paint()..color = Colors.brown,
-      anchor: Anchor.topLeft,
-    ));
+    exitDoor.add(
+      RectangleComponent(
+        size: Vector2(doorWidth, groundHeight),
+        paint: Paint()..color = Colors.brown,
+        anchor: Anchor.topLeft,
+      ),
+    );
     add(exitDoor);
 
     // Make the exit door the active trigger
     door = exitDoor;
 
     if (savedPlayer != null) {
-      savedPlayer.position = Vector2(doorWidth + 4.0, size.y - groundHeight - savedPlayer.size.y - groundVisualOffset);
+      savedPlayer.position = Vector2(
+        doorWidth + 4.0,
+        size.y - groundHeight - savedPlayer.size.y - groundVisualOffset,
+      );
       savedPlayer.velocity.x = 0;
       savedPlayer.moveLeft = false;
       savedPlayer.moveRight = false;
@@ -909,7 +1079,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     return 1;
   }
 
-  Future<int> _findTopOpaquePixel(ui.Image image, {int alphaThreshold = 8}) async {
+  Future<int> _findTopOpaquePixel(
+    ui.Image image, {
+    int alphaThreshold = 8,
+  }) async {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (byteData == null) return 0;
     final Uint8List pixels = byteData.buffer.asUint8List();
@@ -927,7 +1100,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
   /// Returns [top, bottom] row indices (inclusive) of the opaque pixel bounds.
   /// If no opaque pixels found returns [-1, -1].
-  Future<List<int>> _findOpaqueBounds(ui.Image image, {int alphaThreshold = 8}) async {
+  Future<List<int>> _findOpaqueBounds(
+    ui.Image image, {
+    int alphaThreshold = 8,
+  }) async {
     final bd = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (bd == null) return [-1, -1];
     final Uint8List pixels = bd.buffer.asUint8List();
@@ -991,31 +1167,27 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     return null;
   }
 
-
-
   @override
   void onGameResize(Vector2 canvasSize) {
     super.onGameResize(canvasSize);
     _buildScene(canvasSize);
   }
 
-    Future<void> _buildScene(Vector2 canvasSize) async {
+  Future<void> _buildScene(Vector2 canvasSize) async {
+    // Establece una altura fija para el suelo
 
-      // Establece una altura fija para el suelo
+    groundHeight = canvasSize.y * 0.25;
 
-      groundHeight = canvasSize.y * 0.25;
-
-  
-
-      if (background != null) {
-
-        background!.size = canvasSize;
-
-      }
+    if (background != null) {
+      background!.size = canvasSize;
+    }
 
     if (ground != null) {
       ground!.size = Vector2(canvasSize.x, groundHeight);
-      ground!.position = Vector2(0, canvasSize.y - groundHeight - groundVisualOffset);
+      ground!.position = Vector2(
+        0,
+        canvasSize.y - groundHeight - groundVisualOffset,
+      );
     }
 
     // Si el jugador ya existe, lo elimina para recrearlo
@@ -1025,8 +1197,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
     // Crea y posiciona al jugador (tamaño aumentado a 64x64)
     player = Player(size: Vector2(58, 64));
-    player!.position =
-      Vector2(_playerStartX, canvasSize.y - groundHeight - player!.size.y - groundVisualOffset);
+    player!.position = Vector2(
+      _playerStartX,
+      canvasSize.y - groundHeight - player!.size.y - groundVisualOffset,
+    );
     add(player!);
 
     // Add a simple visible door trigger attached to the right edge (near ground)
@@ -1039,20 +1213,18 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       anchor: Anchor.topLeft,
     );
     // Add a visible rectangle so the door is noticeable during testing
-    door!.add(RectangleComponent(
-      size: Vector2(doorWidth, doorHeight),
-      paint: Paint()..color = Colors.brown,
-      anchor: Anchor.topLeft,
-    ));
+    door!.add(
+      RectangleComponent(
+        size: Vector2(doorWidth, doorHeight),
+        paint: Paint()..color = Colors.brown,
+        anchor: Anchor.topLeft,
+      ),
+    );
     add(door!);
 
     // Spawn three spikes after player created
     await _spawnThreeSpikes(canvasSize);
   }
-
-
-
-
 
   @override
   void onTapDown(TapDownEvent event) {
@@ -1068,13 +1240,28 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     resumeEngine();
   }
 
-  void resetGame() {
+  Future<void> resetGame() async {
     // Reiniciar estado y reconstruir la escena
     gameState = GameState.playing;
     // Remove game over overlay if present and restore controls
     overlays.remove('GameOver');
     overlays.add('Controls');
-    _buildScene(size);
+    await _buildScene(size);
+
+    // If we are in the special mode startMap==2, we must skip Level 1 (spikes)
+    // and immediately build the second level scene, just like in onLoad.
+    if (startMap == 2) {
+      // confirm flags are reset
+      _doorUsed = false;
+      _secondLevelActive = false;
+      _thirdLevelActive = false;
+      _disableFallingWhenStartMap2 = true;
+
+      await _onWallClosed();
+
+      _doorState = DoorState.opened;
+    }
+
     if (player != null) {
       player!.invulnerable = 1.0; // Dar un segundo de invulnerabilidad
     }
@@ -1083,14 +1270,16 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     resumeEngine();
   }
 
-
-
   void moveLeftStart() {
-    if (gameState == GameState.playing && !_controlsLocked) player?.moveLeft = true;
+    if (gameState == GameState.playing && !_controlsLocked)
+      player?.moveLeft = true;
   }
+
   void moveRightStart() {
-    if (gameState == GameState.playing && !_controlsLocked) player?.moveRight = true;
+    if (gameState == GameState.playing && !_controlsLocked)
+      player?.moveRight = true;
   }
+
   void moveStop() {
     player?.moveLeft = false;
     player?.moveRight = false;
@@ -1126,16 +1315,16 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
     // images to use in order. Use level-3 variants when in Nivel 3, otherwise keep original
     final names = _thirdLevelActive
-      ? [
-          'pinchos_tres_nvl2.png',
-          'pinchos_dos_nvl2.png',
-          'pinchos_tres_nvl2.png',
-        ]
-      : [
-          'pinchos_tres_mapa.png',
-          'pinchos_dos_mapa.png',
-          'pinchos_tres_mapa.png',
-        ];
+        ? [
+            'pinchos_tres_nvl2.png',
+            'pinchos_dos_nvl2.png',
+            'pinchos_tres_nvl2.png',
+          ]
+        : [
+            'pinchos_tres_mapa.png',
+            'pinchos_dos_mapa.png',
+            'pinchos_tres_mapa.png',
+          ];
 
     // Load all images first
     final List<ui.Image> imgs = [];
@@ -1153,7 +1342,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     // Jump physics approximation (same as SpikeManager)
     final double playerJumpSpeed = 420.0;
     final double playerGravity = 900.0;
-    final double maxJump = (playerJumpSpeed * playerJumpSpeed) / (2 * playerGravity);
+    final double maxJump =
+        (playerJumpSpeed * playerJumpSpeed) / (2 * playerGravity);
 
     // start a bit to the right of player so spikes don't spawn on top
     double cursorX = _playerStartX + (player!.size.x) + 120.0;
@@ -1192,14 +1382,20 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       }
 
       final Vector2 natural = Vector2(imgW.toDouble(), visibleH.toDouble());
-      final double spikeHeight = (min(groundHeight * 0.5, maxJump * 0.6)).clamp(20.0, groundHeight);
+      final double spikeHeight = (min(
+        groundHeight * 0.5,
+        maxJump * 0.6,
+      )).clamp(20.0, groundHeight);
       final double spikeScale = spikeHeight / natural.y;
       final double spikeWidth = natural.x * spikeScale;
 
       // ensure cursorX + spikeWidth doesn't go beyond canvas - marginRight
       if (cursorX + spikeWidth + marginRight > canvasWidth) {
         // shift cursor back so last spike fits
-        cursorX = (canvasWidth - marginRight) - spikeWidth - (imgs.length - i) * (spikeWidth * 1.6);
+        cursorX =
+            (canvasWidth - marginRight) -
+            spikeWidth -
+            (imgs.length - i) * (spikeWidth * 1.6);
         if (cursorX < _playerStartX + player!.size.x + 40) {
           cursorX = _playerStartX + player!.size.x + 40;
         }
@@ -1216,7 +1412,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       // from the right when the player approaches the first spike.
       if (_thirdLevelActive && i == 1 && spawnedSpikes.isNotEmpty) {
         final double targetCenterX = cursorX + spikeWidth / 2;
-        final double startX = canvasWidth + spikeWidth; // off-screen to the right
+        final double startX =
+            canvasWidth + spikeWidth; // off-screen to the right
         spike = Spike(
           sprite: croppedSprite,
           position: Vector2(startX, visibleTop + 1.0),
@@ -1230,14 +1427,19 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         add(spike);
         // Determine trigger point based on first spike's center
         final Spike firstSpike = spawnedSpikes[0];
-        final double firstCenter = firstSpike.position.x; // bottomCenter stores center x
-        final double triggerAt = firstCenter - 60.0; // when player center reaches this X, start movement
-        _slidingSpikes.add(_SlidingSpikeEntry(
-          spike: spike,
-          targetX: targetCenterX,
-          speed: 700.0,
-          triggerAtX: triggerAt,
-        ));
+        final double firstCenter =
+            firstSpike.position.x; // bottomCenter stores center x
+        final double triggerAt =
+            firstCenter -
+            60.0; // when player center reaches this X, start movement
+        _slidingSpikes.add(
+          _SlidingSpikeEntry(
+            spike: spike,
+            targetX: targetCenterX,
+            speed: 700.0,
+            triggerAtX: triggerAt,
+          ),
+        );
       } else {
         spike = Spike(
           sprite: croppedSprite,
@@ -1256,7 +1458,10 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       // gap large enough for player to jump: at least 1.6 * player width
       // give a bit more space between spikes so the player can jump comfortably
       final double gapMultiplier = 2.2;
-      final double gap = max(player!.size.x * gapMultiplier, spikeWidth * gapMultiplier);
+      final double gap = max(
+        player!.size.x * gapMultiplier,
+        spikeWidth * gapMultiplier,
+      );
       cursorX += spikeWidth + gap;
     }
   }
@@ -1280,7 +1485,11 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
   // Temporizador para el buffer de salto (0.1 segundos)
   double _jumpBufferTimer = 0.0;
 
-  Player({Vector2? position, Vector2? size}) : super(position: position ?? Vector2.zero(), size: size ?? Vector2(64, 64));
+  Player({Vector2? position, Vector2? size})
+    : super(
+        position: position ?? Vector2.zero(),
+        size: size ?? Vector2(64, 64),
+      );
 
   @override
   Future<void> onLoad() async {
@@ -1337,26 +1546,31 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
         alphaMask = mask;
         naturalSize = Vector2(imgW.toDouble(), visibleH.toDouble());
 
-        final Sprite cropped = Sprite(img, srcPosition: Vector2(0, top.toDouble()), srcSize: Vector2(imgW.toDouble(), visibleH.toDouble()));
-        add(SpriteComponent(
-          sprite: cropped,
-          size: size,
-          position: Vector2.zero(),
-          anchor: Anchor.topLeft,
-        ));
+        final Sprite cropped = Sprite(
+          img,
+          srcPosition: Vector2(0, top.toDouble()),
+          srcSize: Vector2(imgW.toDouble(), visibleH.toDouble()),
+        );
+        add(
+          SpriteComponent(
+            sprite: cropped,
+            size: size,
+            position: Vector2.zero(),
+            anchor: Anchor.topLeft,
+          ),
+        );
       } else {
-        add(SpriteComponent(
-          sprite: Sprite(img),
-          size: size,
-          position: Vector2.zero(),
-          anchor: Anchor.topLeft,
-        ));
+        add(
+          SpriteComponent(
+            sprite: Sprite(img),
+            size: size,
+            position: Vector2.zero(),
+            anchor: Anchor.topLeft,
+          ),
+        );
       }
     } catch (e) {
-      add(RectangleComponent(
-        size: size,
-        paint: Paint()..color = Colors.red,
-      ));
+      add(RectangleComponent(size: size, paint: Paint()..color = Colors.red));
     }
   }
 
@@ -1389,9 +1603,15 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
       }
     } else {
       if (moveLeft) {
-        velocity.x = (velocity.x - acceleration * dt).clamp(-maxSpeed, maxSpeed);
+        velocity.x = (velocity.x - acceleration * dt).clamp(
+          -maxSpeed,
+          maxSpeed,
+        );
       } else if (moveRight) {
-        velocity.x = (velocity.x + acceleration * dt).clamp(-maxSpeed, maxSpeed);
+        velocity.x = (velocity.x + acceleration * dt).clamp(
+          -maxSpeed,
+          maxSpeed,
+        );
       } else {
         if (velocity.x > 0) {
           velocity.x = (velocity.x - friction * dt).clamp(0, maxSpeed);
@@ -1423,11 +1643,11 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
 
     if (position.x < 0) {
       position.x = 0;
-      if(velocity.x < 0) velocity.x = 0;
+      if (velocity.x < 0) velocity.x = 0;
     }
     if (position.x + size.x > gameRef.size.x) {
       position.x = gameRef.size.x - size.x;
-      if(velocity.x > 0) velocity.x = 0;
+      if (velocity.x > 0) velocity.x = 0;
     }
 
     if (invulnerable > 0) {
@@ -1443,7 +1663,8 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
     final double leftX = position.x;
     final double rightX = position.x + size.x;
     final double? surfaceY = gameRef.surfaceYAt(leftX, rightX);
-    final double groundY = gameRef.size.y - gameRef.groundHeight - gameRef.groundVisualOffset;
+    final double groundY =
+        gameRef.size.y - gameRef.groundHeight - gameRef.groundVisualOffset;
     final double effectiveSurfaceY = surfaceY ?? groundY;
     if ((position.y + size.y) >= effectiveSurfaceY - 0.5) {
       velocity.y = jumpSpeed;

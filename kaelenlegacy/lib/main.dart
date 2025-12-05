@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/home/providers/settings_config_provider.dart';
+import 'screens/home/providers/auth_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +22,11 @@ Future<void> main() async {
     DeviceOrientation.landscapeRight,
   ]);
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => SettingsConfigProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => SettingsConfigProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+      ],
       child: const MaterialApp(
         home: HomeScreen(),
         debugShowCheckedModeBanner: false,
