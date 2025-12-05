@@ -279,6 +279,15 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         }
       }
     }
+
+    // Global out-of-bounds check: if the player falls well below the screen
+    // consider it a death regardless of level. Use a margin so small falls
+    // or temporary physics adjustments don't trigger it prematurely.
+    if (player != null) {
+      if (player!.position.y > size.y + 200) {
+        onPlayerDied();
+      }
+    }
   }
 
   /// Start the door closing animation: spawn two muro pieces (top & bottom)
@@ -412,6 +421,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         cursorX += tileW;
         idx++;
       }
+
+      
 
       // Add groundTiles to the game beneath the player: remove player, add groundTiles, re-add player
       final Player? savedPlayer = player;
@@ -578,6 +589,93 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         }
       }
 
+      // If we started the game from the second door, add floating
+      // platforms to this Nivel (second-level for the second door).
+      if (startMap == 2) {
+        final String platName = 'plataforma_flotante.png';
+        ui.Image? platImg;
+        try {
+          await images.load(platName);
+          platImg = images.fromCache(platName);
+        } catch (_) {
+          platImg = null;
+        }
+        if (platImg != null) {
+          final int topOpaque = await _findTopOpaquePixel(platImg, alphaThreshold: 8);
+          final int naturalH = (platImg.height - topOpaque).clamp(1, platImg.height);
+          final Sprite platSprite = (topOpaque > 0 && topOpaque < platImg.height)
+            ? Sprite(platImg, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(platImg.width.toDouble(), naturalH.toDouble()))
+            : Sprite(platImg);
+
+          final double desiredH = groundHeight * 0.35; // platform height relative to ground
+          final double scale = desiredH / naturalH;
+          final double platW = platImg.width * scale;
+
+          // Pick positions distributed across the first screens of this level
+          final List<double> platformXs = [size.x * 0.5, size.x * 1.1, size.x * 1.9];
+          for (final px in platformXs) {
+            final SpriteComponent p = SpriteComponent(
+              sprite: platSprite,
+              size: Vector2(platW, desiredH),
+              // negative Y places the platform above the ground tiles area
+              position: Vector2(px, -desiredH - (groundHeight * 0.08)),
+              anchor: Anchor.topLeft,
+            );
+            groundTiles!.add(p);
+            // add an invisible hitbox so surface detection is robust
+            final RectangleComponent hit = RectangleComponent(
+              size: p.size,
+              position: p.position,
+              paint: Paint()..color = Colors.transparent,
+              anchor: Anchor.topLeft,
+            );
+            groundTiles!.add(hit);
+          }
+
+          // Add 4 more platforms: one 'tip' near the start of the visible
+          // area and three arranged as a small pyramid further ahead.
+          // These are also children of `groundTiles` so `surfaceYAt` sees them.
+          // Tip platform (close to left/entrance)
+          final double tipX = size.x * 0.08;
+          final SpriteComponent tipPlat = SpriteComponent(
+            sprite: platSprite,
+            size: Vector2(platW, desiredH),
+            position: Vector2(tipX, -desiredH - (groundHeight * 0.06)),
+            anchor: Anchor.topLeft,
+          );
+          groundTiles!.add(tipPlat);
+          groundTiles!.add(RectangleComponent(size: tipPlat.size, position: tipPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+
+          // Pyramid cluster: one top platform and two base platforms
+          final double clusterCenterX = size.x * 2.6;
+          final double spacing = platW * 0.9;
+          final SpriteComponent topPlat = SpriteComponent(
+            sprite: platSprite,
+            size: Vector2(platW, desiredH),
+            position: Vector2(clusterCenterX, -desiredH - (groundHeight * 0.18)),
+            anchor: Anchor.topLeft,
+          );
+          final SpriteComponent leftPlat = SpriteComponent(
+            sprite: platSprite,
+            size: Vector2(platW, desiredH),
+            position: Vector2(clusterCenterX - spacing, -desiredH - (groundHeight * 0.06)),
+            anchor: Anchor.topLeft,
+          );
+          final SpriteComponent rightPlat = SpriteComponent(
+            sprite: platSprite,
+            size: Vector2(platW, desiredH),
+            position: Vector2(clusterCenterX + spacing, -desiredH - (groundHeight * 0.06)),
+            anchor: Anchor.topLeft,
+          );
+          groundTiles!.add(topPlat);
+          groundTiles!.add(RectangleComponent(size: topPlat.size, position: topPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+          groundTiles!.add(leftPlat);
+          groundTiles!.add(RectangleComponent(size: leftPlat.size, position: leftPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+          groundTiles!.add(rightPlat);
+          groundTiles!.add(RectangleComponent(size: rightPlat.size, position: rightPlat.position, paint: Paint()..color = Colors.transparent, anchor: Anchor.topLeft));
+        }
+      }
+
       add(groundTiles!);
 
       // Teleport player to start of Nivel 3
@@ -690,6 +788,11 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     background = null;
     for (final s in spawnedSpikes) s.removeFromParent();
     spawnedSpikes.clear();
+    // remove any sliding spikes entries and their spike components
+    for (final e in _slidingSpikes) {
+      e.spike.removeFromParent();
+    }
+    _slidingSpikes.clear();
 
     // build second level again by reusing the onWallClosed tile-creation logic
     // we call a trimmed copy here: create tiles and left door and teleport player
@@ -864,17 +967,24 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       return ground!.position.y;
     }
 
-    // If tiled ground exists, check its children tiles
+    // If tiled ground exists, check its children tiles and platform hitboxes.
+    // We compute the top-most overlapping surface (smallest Y) so platforms
+    // placed above regular tiles are detected first.
     if (groundTiles != null) {
-      for (final c in groundTiles!.children.whereType<SpriteComponent>()) {
-        final double tileGlobalX = groundTiles!.position.x + c.position.x;
-        final double tileGlobalRight = tileGlobalX + c.size.x;
-        // overlap test between [left,right] and [tileGlobalX,tileGlobalRight]
-        if (!(right <= tileGlobalX || left >= tileGlobalRight)) {
-          // tile overlaps horizontally; return top Y of the tile (groundTiles' Y)
-          return groundTiles!.position.y + c.position.y;
+      double? best;
+      for (final c in groundTiles!.children) {
+        if (c is PositionComponent) {
+          // consider visual tiles and any rectangle hitboxes as valid surfaces
+          if (c is SpriteComponent || c is RectangleComponent) {
+            final double tileGlobalX = groundTiles!.position.x + c.position.x;
+            final double tileGlobalRight = tileGlobalX + c.size.x;
+            if (right <= tileGlobalX || left >= tileGlobalRight) continue;
+            final double topY = groundTiles!.position.y + c.position.y;
+            if (best == null || topY < best) best = topY;
+          }
         }
       }
+      if (best != null) return best;
     }
 
     // no surface under this horizontal range
@@ -1327,11 +1437,18 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
   }
 
   void jump() {
-    final groundY = gameRef.size.y - gameRef.groundHeight - gameRef.groundVisualOffset;
-    if ((position.y + size.y) >= groundY - 0.5) {
+    // Consider any surface under the player's horizontal span (including
+    // floating platforms) as ground for jumping. Fall back to the main
+    // ground Y if surfaceYAt returns null.
+    final double leftX = position.x;
+    final double rightX = position.x + size.x;
+    final double? surfaceY = gameRef.surfaceYAt(leftX, rightX);
+    final double groundY = gameRef.size.y - gameRef.groundHeight - gameRef.groundVisualOffset;
+    final double effectiveSurfaceY = surfaceY ?? groundY;
+    if ((position.y + size.y) >= effectiveSurfaceY - 0.5) {
       velocity.y = jumpSpeed;
     } else {
-      // Si no está en el suelo, activar el buffer de salto
+      // Not on any surface: enable jump buffer
       _jumpBufferTimer = 0.15;
     }
   }
