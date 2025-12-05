@@ -11,6 +11,22 @@ import 'obstacles/spikes.dart';
 import 'game_api.dart';
 import 'collision_utils.dart';
 
+// Helper entry for spikes that slide from off-screen into their final X.
+class _SlidingSpikeEntry {
+  final Spike spike;
+  final double targetX; // final center x position (matching spike.position.x semantics)
+  final double speed; // px/s moving leftwards
+  final double triggerAtX; // player center X at which the spike starts moving
+  bool started = false;
+  bool finished = false;
+  _SlidingSpikeEntry({
+    required this.spike,
+    required this.targetX,
+    required this.speed,
+    required this.triggerAtX,
+  });
+}
+
 enum DoorState { idle, closing, closed, opening, opened }
 
 class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
@@ -31,6 +47,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   PositionComponent? door;
   DoorState _doorState = DoorState.idle;
   bool _doorUsed = false; // ensure it only closes once
+  // When true, player input for horizontal movement is ignored.
+  bool _controlsLocked = false;
   SpriteComponent? _muroTop;
   SpriteComponent? _muroBottom;
   double _muroSpeed = 420.0; // pixels per second the muro pieces move
@@ -38,11 +56,15 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   PositionComponent? groundTiles;
   // Second level / falling tiles state
   bool _secondLevelActive = false;
+  // When true, do not trigger falling tiles (used when starting as startMap==2)
+  bool _disableFallingWhenStartMap2 = false;
   // Third level state
   bool _thirdLevelActive = false;
   bool _fallTriggered = false;
   double _fallSpeed = 900.0; // px/s for falling tiles
   final List<SpriteComponent> _fallingTiles = [];
+  // Sliding spike entries for spikes that come from off-screen
+  final List<_SlidingSpikeEntry> _slidingSpikes = [];
   // Void-fall detection and control-lock
   bool _inVoidFalling = false;
   double _voidFallTimer = 0.0;
@@ -95,8 +117,14 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (startMap == 2) {
       // ensure door flags are reset and then build level 2
       _doorUsed = false;
-      _doorState = DoorState.opened; // mark opened so player can trigger close
+      // If we started directly at map 2, disable falling tile triggers for the base ground
+      _disableFallingWhenStartMap2 = true;
+      // Build the second-level scene immediately
       await _onWallClosed();
+      // Ensure the muro state is 'opened' (don't rely on opening animation
+      // since there are no muro pieces when starting directly at map 2).
+      _doorState = DoorState.opened;
+      _controlsLocked = false;
     }
     // Start in intro state, wait for a tap to begin
     gameState = GameState.intro;
@@ -106,6 +134,34 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   void update(double dt) {
     super.update(dt);
     if (gameState != GameState.playing) return;
+
+    // Update sliding spikes movement (they move towards their targetX once triggered)
+    if (_slidingSpikes.isNotEmpty && player != null) {
+      final double playerCenterX = player!.position.x + player!.size.x / 2.0;
+      for (final e in List<_SlidingSpikeEntry>.from(_slidingSpikes)) {
+        if (!e.started) {
+          if (playerCenterX >= e.triggerAtX) {
+            e.started = true;
+          } else {
+            continue;
+          }
+        }
+        if (!e.finished) {
+          // move left towards target
+          final double move = e.speed * dt;
+          e.spike.position.x = (e.spike.position.x - move);
+          if (e.spike.position.x <= e.targetX) {
+            e.spike.position.x = e.targetX;
+            e.finished = true;
+          }
+        }
+        // Remove entries that finished and whose spike is not in spawnedSpikes anymore
+        if (e.finished) {
+          // keep the spike in the spawned list for collisions; but drop the entry
+          _slidingSpikes.remove(e);
+        }
+      }
+    }
 
     // If player touches the door trigger, start closing the muro (only once).
     // Allow triggering when the muro is idle or already opened (ready to close again).
@@ -157,7 +213,9 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
           _muroBottom = null;
           // Keep the `door` component (it may be the newly-created exit door).
           // Allow the door to be used again for subsequent transitions
-          _doorUsed = false;
+            _doorUsed = false;
+            // Re-enable controls now that opening finished
+            _controlsLocked = false;
         }
       }
     }
@@ -215,7 +273,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (player != null) {
       final playerRect = player!.toRect();
       for (final s in spawnedSpikes) {
-        if (checkPixelPerfectCollision(playerRect, s)) {
+        if (checkPixelPerfectCollision(playerRect, s, playerMask: player!.alphaMask, playerNaturalSize: player!.naturalSize)) {
           onPlayerDied();
           break;
         }
@@ -234,25 +292,38 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       player!.velocity.x = 0;
       player!.moveLeft = false;
       player!.moveRight = false;
+      // Lock controls so player can't re-enable movement while transition runs
+      _controlsLocked = true;
     }
 
     // Load muro image and create top/bottom sprites
     try {
-      await images.load('muro.png');
-      final img = images.fromCache('muro.png');
+      // Choose muro images depending on context. For startMap==2, use the
+      // specialized top/bottom images so they visually meet in the middle.
+      String topName = 'muro.png';
+      String bottomName = 'muro.png';
+      if (startMap == 2) {
+        topName = 'muro_invert_nvl1.png';
+        bottomName = 'muro_nvl1.png';
+      }
+      await images.load(topName);
+      await images.load(bottomName);
+      final imgTop = images.fromCache(topName);
+      final imgBottom = images.fromCache(bottomName);
       final double halfH = size.y / 2.0;
 
-      final Sprite spr = Sprite(img);
+      final Sprite sprTop = Sprite(imgTop);
+      final Sprite sprBottom = Sprite(imgBottom);
       // Top muro: starts above the screen
       _muroTop = SpriteComponent(
-        sprite: spr,
+        sprite: sprTop,
         size: Vector2(size.x, halfH),
         position: Vector2(0, -halfH),
         anchor: Anchor.topLeft,
       );
       // Bottom muro: starts below the screen
       _muroBottom = SpriteComponent(
-        sprite: spr,
+        sprite: sprBottom,
         size: Vector2(size.x, halfH),
         position: Vector2(0, size.y),
         anchor: Anchor.topLeft,
@@ -297,13 +368,17 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
 
       // names and order for tiles
-      final List<String> tileNames = [
-        'piso_1_mapa.png',
-        'piso_2_mapa.png',
-        'piso_3_mapa.png',
-        'piso_14_mapa.png',
-        'piso_5_mapa.png',
-      ];
+      // If the game was started directly from the second door (startMap==2),
+      // build the second-level ground using the special part-2 floor image.
+      final List<String> tileNames = (startMap == 2)
+        ? ['piso_nvl1_pt2.png']
+        : [
+            'piso_1_mapa.png',
+            'piso_2_mapa.png',
+            'piso_3_mapa.png',
+            'piso_14_mapa.png',
+            'piso_5_mapa.png',
+          ];
 
       double cursorX = 0.0;
       int idx = 0;
@@ -392,7 +467,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       // mark that second level is now active and allow future transitions
       _secondLevelActive = true;
       _doorUsed = false;
-
+      // Re-enable player controls after second-level build
+      _controlsLocked = false;
       return;
     }
 
@@ -425,46 +501,81 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
       groundTiles = PositionComponent(position: groundPos, size: Vector2(targetWidth, groundHeight), anchor: Anchor.topLeft);
 
-      final List<String> tileNamesLevel3 = [
-        'piso1_2_chico.png',
-        'piso2_2_chico.png',
-        'piso3_2_chico.png',
-        'piso4_2_chico.png',
-        'piso5_2_chico.png',
-        'piso6_2_chico.png',
-      ];
-
-      double cursorX = 0.0;
-      int idx = 0;
-      while (cursorX < targetWidth) {
-        final name = tileNamesLevel3[idx % tileNamesLevel3.length];
+      // If we started the game from the second door (startMap==2), build a
+      // special Nivel 2 floor using `piso_nvl2_pt2.png` occupying 25% of the
+      // screen width, centered. Otherwise build the regular tiled ground.
+      if (startMap == 2) {
+        final String special = 'piso_nvl2_pt2.png';
         ui.Image? img;
         try {
-          await images.load(name);
-          img = images.fromCache(name);
+          await images.load(special);
+          img = images.fromCache(special);
         } catch (_) {
           img = null;
         }
-        if (img == null) { idx++; continue; }
+        if (img != null) {
+          final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+          final int naturalH = (img.height - topOpaque).clamp(1, img.height);
+          final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
+            ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
+            : Sprite(img);
 
-        final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
-        final int naturalH = (img.height - topOpaque).clamp(1, img.height);
-        final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
-          ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
-          : Sprite(img);
+          // target width is 25% of visible canvas. Place the special tile
+          // pinned to the LEFT of the visible screen so the player sees it
+          // at the start of the level. Previously it was centered across the
+          // whole long tiled ground and ended up off-screen.
+          final double tileW = size.x * 0.25;
+          final SpriteComponent tileComp = SpriteComponent(
+            sprite: tileSprite,
+            size: Vector2(tileW, groundHeight),
+            // pin to the left edge of the VISIBLE canvas
+            position: Vector2(0, 0),
+            anchor: Anchor.topLeft,
+          );
+          groundTiles!.add(tileComp);
+        }
+      } else {
+        final List<String> tileNamesLevel3 = [
+          'piso1_2_chico.png',
+          'piso2_2_chico.png',
+          'piso3_2_chico.png',
+          'piso4_2_chico.png',
+          'piso5_2_chico.png',
+          'piso6_2_chico.png',
+        ];
 
-        final double tileScale = groundHeight / naturalH;
-        final double tileW = img.width * tileScale;
+        double cursorX = 0.0;
+        int idx = 0;
+        while (cursorX < targetWidth) {
+          final name = tileNamesLevel3[idx % tileNamesLevel3.length];
+          ui.Image? img;
+          try {
+            await images.load(name);
+            img = images.fromCache(name);
+          } catch (_) {
+            img = null;
+          }
+          if (img == null) { idx++; continue; }
 
-        final SpriteComponent tileComp = SpriteComponent(
-          sprite: tileSprite,
-          size: Vector2(tileW, groundHeight),
-          position: Vector2(cursorX, 0),
-          anchor: Anchor.topLeft,
-        );
-        groundTiles!.add(tileComp);
-        cursorX += tileW;
-        idx++;
+          final int topOpaque = await _findTopOpaquePixel(img, alphaThreshold: 8);
+          final int naturalH = (img.height - topOpaque).clamp(1, img.height);
+          final Sprite tileSprite = (topOpaque > 0 && topOpaque < img.height)
+            ? Sprite(img, srcPosition: Vector2(0, topOpaque.toDouble()), srcSize: Vector2(img.width.toDouble(), naturalH.toDouble()))
+            : Sprite(img);
+
+          final double tileScale = groundHeight / naturalH;
+          final double tileW = img.width * tileScale;
+
+          final SpriteComponent tileComp = SpriteComponent(
+            sprite: tileSprite,
+            size: Vector2(tileW, groundHeight),
+            position: Vector2(cursorX, 0),
+            anchor: Anchor.topLeft,
+          );
+          groundTiles!.add(tileComp);
+          cursorX += tileW;
+          idx++;
+        }
       }
 
       add(groundTiles!);
@@ -483,13 +594,24 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
       // Allow level 3 obstacles to spawn: reuse spike spawner by ensuring flags
       _thirdLevelActive = true;
       _secondLevelActive = false;
-      // spawn spikes for Nivel 3
-      await _spawnThreeSpikes(size);
+      // If this special Nivel 3 was created because we started from the
+      // second door (startMap==2) we intentionally do NOT spawn spikes so
+      // the small special floor remains safe; otherwise spawn the usual
+      // Nivel 3 spikes.
+      if (startMap == 2) {
+        // Ensure no lingering spikes exist
+        for (final s in spawnedSpikes) s.removeFromParent();
+        spawnedSpikes.clear();
+      } else {
+        await _spawnThreeSpikes(size);
+      }
 
       // Open the muro to reveal Nivel 3
       _doorState = DoorState.opening;
       // ensure door flag reset
       _doorUsed = false;
+      // Re-enable player controls after Nivel 3 build
+      _controlsLocked = false;
       return;
     }
   }
@@ -497,6 +619,7 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
   /// Find two tiles near the player and make them fall (so they create a hole).
   void _triggerFallingTiles() {
     if (groundTiles == null) return;
+    if (_disableFallingWhenStartMap2) return;
     if (player == null) return;
     final double playerCenterX = player!.position.x + player!.size.x / 2.0;
     // find tile whose global x-range contains playerCenterX
@@ -663,6 +786,8 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     _voidFallTimer = 0.0;
     // Ensure game is in playing state and no spikes are spawned
     gameState = GameState.playing;
+    // Unlock controls after restart
+    _controlsLocked = false;
     resumeEngine();
   }
 
@@ -673,6 +798,13 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
 
   /// Whether the game is currently in second-level mode (used by overlays)
   bool get isSecondLevelActive => _secondLevelActive;
+
+  /// Number of doors that should be considered unlocked when returning to home.
+  /// Simple heuristic: if the game reached second or third level, unlock door 2.
+  int get unlockedDoorsCount {
+    if (_thirdLevelActive || _secondLevelActive) return 2;
+    return 1;
+  }
 
   Future<int> _findTopOpaquePixel(ui.Image image, {int alphaThreshold = 8}) async {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -777,12 +909,12 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     }
 
     // Si el jugador ya existe, lo elimina para recrearlo
-    if (player != null) { 
+    if (player != null) {
       remove(player!);
     }
 
-    // Crea y posiciona al jugador (un poco más grande)
-    player = Player(size: Vector2(60, 68));
+    // Crea y posiciona al jugador (tamaño aumentado a 64x64)
+    player = Player(size: Vector2(58, 64));
     player!.position =
       Vector2(_playerStartX, canvasSize.y - groundHeight - player!.size.y - groundVisualOffset);
     add(player!);
@@ -836,16 +968,18 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
     if (player != null) {
       player!.invulnerable = 1.0; // Dar un segundo de invulnerabilidad
     }
+    // Ensure controls are unlocked when resetting the game
+    _controlsLocked = false;
     resumeEngine();
   }
 
 
 
   void moveLeftStart() {
-    if (gameState == GameState.playing) player?.moveLeft = true;
+    if (gameState == GameState.playing && !_controlsLocked) player?.moveLeft = true;
   }
   void moveRightStart() {
-    if (gameState == GameState.playing) player?.moveRight = true;
+    if (gameState == GameState.playing && !_controlsLocked) player?.moveRight = true;
   }
   void moveStop() {
     player?.moveLeft = false;
@@ -967,18 +1101,47 @@ class RunnerGame extends FlameGame with TapCallbacks implements GameApi {
         srcPosition: Vector2(0, top.toDouble()),
         srcSize: Vector2(imgW.toDouble(), visibleH.toDouble()),
       );
-      final spike = Spike(
-        sprite: croppedSprite,
-        // place bottom of spike at visibleTop + small overlap so it doesn't look floating
-        position: Vector2(cursorX + spikeWidth / 2, visibleTop + 1.0),
-        size: Vector2(spikeWidth, spikeHeight),
-        anchor: Anchor.bottomCenter,
-        pixels: croppedPixels,
-        alphaMask: alphaMask,
-        naturalSize: natural,
-      );
-      spawnedSpikes.add(spike);
-      add(spike);
+      Spike spike;
+      // If we're in Nivel 3 (third level) and this is the second spike, make it slide
+      // from the right when the player approaches the first spike.
+      if (_thirdLevelActive && i == 1 && spawnedSpikes.isNotEmpty) {
+        final double targetCenterX = cursorX + spikeWidth / 2;
+        final double startX = canvasWidth + spikeWidth; // off-screen to the right
+        spike = Spike(
+          sprite: croppedSprite,
+          position: Vector2(startX, visibleTop + 1.0),
+          size: Vector2(spikeWidth, spikeHeight),
+          anchor: Anchor.bottomCenter,
+          pixels: croppedPixels,
+          alphaMask: alphaMask,
+          naturalSize: natural,
+        );
+        spawnedSpikes.add(spike);
+        add(spike);
+        // Determine trigger point based on first spike's center
+        final Spike firstSpike = spawnedSpikes[0];
+        final double firstCenter = firstSpike.position.x; // bottomCenter stores center x
+        final double triggerAt = firstCenter - 60.0; // when player center reaches this X, start movement
+        _slidingSpikes.add(_SlidingSpikeEntry(
+          spike: spike,
+          targetX: targetCenterX,
+          speed: 700.0,
+          triggerAtX: triggerAt,
+        ));
+      } else {
+        spike = Spike(
+          sprite: croppedSprite,
+          // place bottom of spike at visibleTop + small overlap so it doesn't look floating
+          position: Vector2(cursorX + spikeWidth / 2, visibleTop + 1.0),
+          size: Vector2(spikeWidth, spikeHeight),
+          anchor: Anchor.bottomCenter,
+          pixels: croppedPixels,
+          alphaMask: alphaMask,
+          naturalSize: natural,
+        );
+        spawnedSpikes.add(spike);
+        add(spike);
+      }
 
       // gap large enough for player to jump: at least 1.6 * player width
       // give a bit more space between spikes so the player can jump comfortably
@@ -994,10 +1157,9 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
   bool moveLeft = false;
   bool moveRight = false;
   double invulnerable = 0.0;
-
-  late SpriteAnimation walkingAnimation;
-  late SpriteAnimation idleAnimation;
-  late SpriteAnimationComponent _anim;
+  // Pixel mask for the player's visible pixels (alpha mask).
+  Uint8List? alphaMask;
+  Vector2? naturalSize;
 
   final double acceleration = 1200;
   final double maxSpeed = 350;
@@ -1014,24 +1176,72 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
   Future<void> onLoad() async {
     await super.onLoad();
     anchor = Anchor.topLeft;
-    // Load walking frames and idle sprite; fall back to rectangle if any load fails.
+    // Try to load the sprite image for the player. If missing, fall back to a red rectangle.
     try {
-      await gameRef.images.load('personaje_paso1.png');
-      await gameRef.images.load('personaje_paso2.png');
-      await gameRef.images.load('personaje_paso3.png');
       await gameRef.images.load('Personaje_quieto.png');
+      final ui.Image img = gameRef.images.fromCache('Personaje_quieto.png');
+      // Extract alpha mask and visible bounds so we can perform pixel-perfect collisions
+      final bd = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (bd != null) {
+        final pixels = bd.buffer.asUint8List();
+        final int imgW = img.width;
+        final int imgH = img.height;
+        int top = -1;
+        int bottom = -1;
+        for (int y = 0; y < imgH; y++) {
+          final int rowStart = y * imgW * 4;
+          for (int x = 0; x < imgW; x++) {
+            if (pixels[rowStart + x * 4 + 3] > 10) {
+              top = y;
+              break;
+            }
+          }
+          if (top != -1) break;
+        }
+        if (top != -1) {
+          for (int y = imgH - 1; y >= 0; y--) {
+            final int rowStart = y * imgW * 4;
+            for (int x = 0; x < imgW; x++) {
+              if (pixels[rowStart + x * 4 + 3] > 10) {
+                bottom = y;
+                break;
+              }
+            }
+            if (bottom != -1) break;
+          }
+        }
+        if (top == -1 || bottom == -1) {
+          top = 0;
+          bottom = imgH - 1;
+        }
+        final int visibleH = bottom - top + 1;
+        final Uint8List mask = Uint8List(imgW * visibleH);
+        for (int y = 0; y < visibleH; y++) {
+          final int srcRow = (top + y) * imgW * 4;
+          final int dstRow = y * imgW;
+          for (int x = 0; x < imgW; x++) {
+            final int a = pixels[srcRow + x * 4 + 3];
+            mask[dstRow + x] = a > 10 ? 1 : 0;
+          }
+        }
+        alphaMask = mask;
+        naturalSize = Vector2(imgW.toDouble(), visibleH.toDouble());
 
-      final ui.Image img1 = gameRef.images.fromCache('personaje_paso1.png');
-      final ui.Image img2 = gameRef.images.fromCache('personaje_paso2.png');
-      final ui.Image img3 = gameRef.images.fromCache('personaje_paso3.png');
-      final ui.Image idleImg = gameRef.images.fromCache('Personaje_quieto.png');
-
-      final sprites = [Sprite(img1), Sprite(img2), Sprite(img3)];
-      walkingAnimation = SpriteAnimation.spriteList(sprites, stepTime: 0.12, loop: true);
-      idleAnimation = SpriteAnimation.spriteList([Sprite(idleImg)], stepTime: 1.0, loop: true);
-
-      _anim = SpriteAnimationComponent(animation: idleAnimation, size: size, anchor: Anchor.topLeft);
-      add(_anim);
+        final Sprite cropped = Sprite(img, srcPosition: Vector2(0, top.toDouble()), srcSize: Vector2(imgW.toDouble(), visibleH.toDouble()));
+        add(SpriteComponent(
+          sprite: cropped,
+          size: size,
+          position: Vector2.zero(),
+          anchor: Anchor.topLeft,
+        ));
+      } else {
+        add(SpriteComponent(
+          sprite: Sprite(img),
+          size: size,
+          position: Vector2.zero(),
+          anchor: Anchor.topLeft,
+        ));
+      }
     } catch (e) {
       add(RectangleComponent(
         size: size,
@@ -1113,21 +1323,6 @@ class Player extends PositionComponent with HasGameRef<RunnerGame> {
     if (invulnerable > 0) {
       invulnerable -= dt;
       if (invulnerable < 0) invulnerable = 0;
-    }
-
-    // Update sprite animation based on movement state
-    try {
-      // If any horizontal movement, play walking animation; otherwise show idle
-      final bool isMovingHorizontally = moveLeft || moveRight;
-      if (isMovingHorizontally && _anim.animation != walkingAnimation) {
-        _anim.animation = walkingAnimation;
-      } else if (!isMovingHorizontally && _anim.animation != idleAnimation) {
-        _anim.animation = idleAnimation;
-      }
-      // Flip sprite when moving left by negating X scale (safe fallback)
-      _anim.scale.x = moveLeft ? -1.0 : 1.0;
-    } catch (_) {
-      // If animation component not present (fallback rectangle), ignore
     }
   }
 

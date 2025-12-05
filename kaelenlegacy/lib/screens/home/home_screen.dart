@@ -272,9 +272,10 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                             );
                             // If game requested returning to home and activating
-                            // the second door, prepare showmap at its final part
+                            // doors, support both the legacy 'activate_second_door'
+                            // and new 'unlock:N' result which indicates how many
+                            // doors should be unlocked (1..5).
                             if (result == 'activate_second_door') {
-                              // unlock door 2 (index 1)
                               setState(() {
                                 _doorUnlocked[1] = true;
                               });
@@ -294,6 +295,15 @@ class _HomeScreenState extends State<HomeScreen>
                               } catch (_) {}
                               if (!mounted) return;
                               setState(() {
+                                _showDoor = true;
+                              });
+                            } else if (result is String && result.startsWith('unlock:')) {
+                              final parts = result.split(':');
+                              final n = int.tryParse(parts[1]) ?? 1;
+                              setState(() {
+                                for (int i = 0; i < _doorUnlocked.length; i++) {
+                                  _doorUnlocked[i] = i < n;
+                                }
                                 _showDoor = true;
                               });
                             }
@@ -318,9 +328,17 @@ class _HomeScreenState extends State<HomeScreen>
                                       builder: (_) => const GameScreen(startMap: 2),
                                     ),
                                   );
-                                  // propagate activation if requested by game
+                                  // propagate activation or unlock info when returned
                                   if (result == 'activate_second_door') {
                                     setState(() => _doorUnlocked[1] = true);
+                                  } else if (result is String && result.startsWith('unlock:')) {
+                                    final parts = result.split(':');
+                                    final n = int.tryParse(parts[1]) ?? 1;
+                                    setState(() {
+                                      for (int i = 0; i < _doorUnlocked.length; i++) {
+                                        _doorUnlocked[i] = i < n;
+                                      }
+                                    });
                                   }
                                 }
                               : null,

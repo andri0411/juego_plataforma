@@ -4,7 +4,19 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 import 'obstacles/spikes.dart';
 
-bool checkPixelPerfectCollision(Rect playerRect, Spike spike) {
+/// Pixel-perfect collision between a player area and a spike.
+///
+/// If `playerMask` and `playerNaturalSize` are provided, both the player's
+/// alpha mask and the spike's alpha mask are checked — collision only
+/// registers when both pixels are opaque at the same world point.
+/// If `playerMask` is null, falls back to checking only the spike mask
+/// (legacy behaviour).
+bool checkPixelPerfectCollision(
+  Rect playerRect,
+  Spike spike, {
+  Uint8List? playerMask,
+  Vector2? playerNaturalSize,
+}) {
   final spikeRect = Rect.fromLTWH(
     spike.position.x - spike.size.x / 2,
     spike.position.y - spike.size.y,
@@ -16,16 +28,19 @@ bool checkPixelPerfectCollision(Rect playerRect, Spike spike) {
   final overlap = playerRect.intersect(spikeRect);
   if (overlap.width <= 0 || overlap.height <= 0) return false;
 
-  final int imgW = spike.naturalSize.x.toInt();
-  final int imgH = spike.naturalSize.y.toInt();
-  final Uint8List mask = spike.alphaMask;
+  final int spikeImgW = spike.naturalSize.x.toInt();
+  final int spikeImgH = spike.naturalSize.y.toInt();
+  final Uint8List spikeMask = spike.alphaMask;
 
-  // Prefill left/top for clarity and to avoid recomputing the same values.
   final double spikeLeft = spike.position.x - spike.size.x / 2;
   final double spikeTop = spike.position.y - spike.size.y;
 
-  // Dynamic sampling: when overlap area is small, sample every pixel for
-  // accuracy; otherwise sample a grid to reduce cost.
+  // Player image info (may be null)
+  final bool havePlayerMask = playerMask != null && playerNaturalSize != null;
+  final int playerImgW = havePlayerMask ? playerNaturalSize!.x.toInt() : 0;
+  final int playerImgH = havePlayerMask ? playerNaturalSize!.y.toInt() : 0;
+
+  // Dynamic sampling for performance
   final double overlapArea = overlap.width * overlap.height;
   final bool fineSample = overlapArea < 400; // e.g. 20x20
   final int stepX = fineSample ? 1 : max(1, (overlap.width / 10).floor());
@@ -33,32 +48,60 @@ bool checkPixelPerfectCollision(Rect playerRect, Spike spike) {
 
   for (double wy = overlap.top; wy < overlap.bottom; wy += stepY) {
     for (double wx = overlap.left; wx < overlap.right; wx += stepX) {
-      final idx = _indexForWorldPointOnSpike(
+      final spikeIdx = _indexForWorldPointOnSpike(
         spike,
         wx,
         wy,
         spikeLeft,
         spikeTop,
-        imgW,
-        imgH,
+        spikeImgW,
+        spikeImgH,
       );
-      if (idx >= 0 && mask[idx] != 0) return true;
+      if (spikeIdx < 0 || spikeMask[spikeIdx] == 0) continue;
+
+      // If we don't have a player mask, any non-transparent spike pixel is a hit
+      if (!havePlayerMask) return true;
+
+      final playerIdx = _indexForWorldPointOnPlayer(
+        wx,
+        wy,
+        playerRect.left,
+        playerRect.top,
+        playerImgW,
+        playerImgH,
+        playerRect.width,
+        playerRect.height,
+      );
+      if (playerIdx >= 0 && playerMask![playerIdx] != 0) return true;
     }
   }
-  // Fallback: sample the center of the overlap once in case the stepped
-  // sampling missed a thin spike (can happen on small overlaps).
+
+  // Fallback: sample the center of the overlap once
   final wx = overlap.left + overlap.width / 2;
   final wy = overlap.top + overlap.height / 2;
-  final idx = _indexForWorldPointOnSpike(
+  final spikeIdx = _indexForWorldPointOnSpike(
     spike,
     wx,
     wy,
     spikeLeft,
     spikeTop,
-    imgW,
-    imgH,
+    spikeImgW,
+    spikeImgH,
   );
-  if (idx >= 0 && mask[idx] != 0) return true;
+  if (spikeIdx >= 0 && spikeMask[spikeIdx] != 0) {
+    if (!havePlayerMask) return true;
+    final playerIdx = _indexForWorldPointOnPlayer(
+      wx,
+      wy,
+      playerRect.left,
+      playerRect.top,
+      playerImgW,
+      playerImgH,
+      playerRect.width,
+      playerRect.height,
+    );
+    if (playerIdx >= 0 && playerMask![playerIdx] != 0) return true;
+  }
   return false;
 }
 
@@ -83,6 +126,27 @@ int _indexForWorldPointOnSpike(
   }
   int imgX = ((localX / spike.size.x) * imgW).floor();
   int imgY = ((localY / spike.size.y) * imgH).floor();
+  imgX = max(0, min(imgX, imgW - 1));
+  imgY = max(0, min(imgY, imgH - 1));
+  return imgY * imgW + imgX;
+}
+
+// Map a world point to a player image mask index. Returns -1 if outside.
+int _indexForWorldPointOnPlayer(
+  double worldX,
+  double worldY,
+  double playerLeft,
+  double playerTop,
+  int imgW,
+  int imgH,
+  double playerWidth,
+  double playerHeight,
+) {
+  final localX = worldX - playerLeft;
+  final localY = worldY - playerTop;
+  if (localX < 0 || localY < 0 || localX > playerWidth || localY > playerHeight) return -1;
+  int imgX = ((localX / playerWidth) * imgW).floor();
+  int imgY = ((localY / playerHeight) * imgH).floor();
   imgX = max(0, min(imgX, imgW - 1));
   imgY = max(0, min(imgY, imgH - 1));
   return imgY * imgW + imgX;
